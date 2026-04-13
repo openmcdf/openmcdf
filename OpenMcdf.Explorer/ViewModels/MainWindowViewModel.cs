@@ -407,10 +407,10 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         if (entryInfo.CLSID != Guid.Empty)
             EntryProperties.Add(new EntryProperty("CLSID", entryInfo.CLSID.ToString()));
 
-        if (entryInfo.CreationTime != default)
+        if (!entryInfo.CreationTime.IsFileTimeUtcZero())
             EntryProperties.Add(new EntryProperty("Created", entryInfo.CreationTime.ToString()));
 
-        if (entryInfo.ModifiedTime != default)
+        if (!entryInfo.ModifiedTime.IsFileTimeUtcZero())
             EntryProperties.Add(new EntryProperty("Modified", entryInfo.ModifiedTime.ToString()));
     }
 
