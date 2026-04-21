@@ -38,10 +38,7 @@ internal sealed class DictionaryProperty : IProperty
 
         if (m > 0)
         {
-            for (int i = 0; i < m; i++)
-            {
-                br.ReadByte();
-            }
+            br.SkipPadding(m);
         }
     }
 
@@ -50,26 +47,22 @@ internal sealed class DictionaryProperty : IProperty
     {
         uint propertyIdentifier = br.ReadUInt32();
         int length = br.ReadInt32();
-
-        byte[] nameBytes;
+        int byteLength = length;
+        int paddingLength = 0;
 
         if (codePage == CodePages.WinUnicode)
         {
-            nameBytes = br.ReadBytes(length << 1);
+            paddingLength = length * 2 % 4;
+            byteLength = (length << 1) + paddingLength;
+        }
 
-            int m = length * 2 % 4;
-            if (m > 0)
-                br.ReadBytes(m);
-        }
-        else
-        {
-            nameBytes = br.ReadBytes(length);
-        }
+        byte[] nameBytes = new byte[byteLength];
+        br.ReadExactly(nameBytes);
 
         int nullByteCount = this.codePage == CodePages.WinUnicode ? 2 : 1;
-        int nonNullSize = Math.Max(0, nameBytes.Length - nullByteCount);
+        int valueSize = Math.Max(0, nameBytes.Length - nullByteCount - paddingLength); // Only convert the actual characters, not the null terminator or padding
 
-        string entryName = encoding.GetString(nameBytes, 0, nonNullSize);
+        string entryName = encoding.GetString(nameBytes, 0, valueSize);
         entries!.Add(propertyIdentifier, entryName);
     }
 
