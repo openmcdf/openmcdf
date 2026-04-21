@@ -1,5 +1,3 @@
-using System.Buffers;
-
 namespace OpenMcdf.Ole;
 
 internal static class StreamExtensions
@@ -7,7 +5,7 @@ internal static class StreamExtensions
 #if !NET
     private static int Read(this Stream target, Span<byte> buffer)
     {
-        var sharedBuffer = ArrayPool<byte>.Shared.Rent(buffer.Length);
+        var sharedBuffer = System.Buffers.ArrayPool<byte>.Shared.Rent(buffer.Length);
         try
         {
             int numRead = target.Read(sharedBuffer, 0, buffer.Length);
@@ -16,7 +14,7 @@ internal static class StreamExtensions
         }
         finally
         {
-            ArrayPool<byte>.Shared.Return(sharedBuffer);
+            System.Buffers.ArrayPool<byte>.Shared.Return(sharedBuffer);
         }
     }
 
