@@ -44,14 +44,14 @@ internal sealed class PropertySetStream
         ByteOrder = br.ReadUInt16();
         Version = br.ReadUInt16();
         SystemIdentifier = br.ReadUInt32();
-        CLSID = new Guid(br.ReadBytes(16));
+        CLSID = br.ReadGuid();
         NumPropertySets = br.ReadUInt32();
-        FMTID0 = new Guid(br.ReadBytes(16));
+        FMTID0 = br.ReadGuid();
         Offset0 = br.ReadUInt32();
 
         if (NumPropertySets == 2)
         {
-            FMTID1 = new Guid(br.ReadBytes(16));
+            FMTID1 = br.ReadGuid();
             Offset1 = br.ReadUInt32();
         }
 

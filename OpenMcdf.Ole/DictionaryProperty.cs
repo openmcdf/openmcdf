@@ -27,11 +27,11 @@ internal sealed class DictionaryProperty : IProperty
         uint numEntries = br.ReadUInt32();
 
         // Encoding.GetEncoding can actually be quite slow, so as all strings are in the same codepage, get the encoding once and then use it for each property.
-        Encoding encoding = Encoding.GetEncoding(codePage);
+        Encoding? encoding = null;
 
         for (uint i = 0; i < numEntries; i++)
         {
-            ReadEntry(br, encoding);
+            ReadEntry(br, ref encoding);
         }
 
         int m = (int)(br.BaseStream.Position - curPos) % 4;
@@ -43,26 +43,29 @@ internal sealed class DictionaryProperty : IProperty
     }
 
     // Read a single dictionary entry
-    private void ReadEntry(BinaryReader br, Encoding encoding)
+    private void ReadEntry(BinaryReader br, ref Encoding? encoding)
     {
         uint propertyIdentifier = br.ReadUInt32();
         int length = br.ReadInt32();
-        int byteLength = length;
-        int paddingLength = 0;
 
+        string entryName;
+
+        // WinUnicode properties are padded so the length is a multiple of 4 bytes. We need to skip that padding.
         if (codePage == CodePages.WinUnicode)
         {
-            paddingLength = length * 2 % 4;
-            byteLength = (length << 1) + paddingLength;
+            entryName = br.ReadNullTerminatedWideString(length);
+
+            int paddingLength = length * 2 % 4;
+            if (paddingLength > 0)
+                br.SkipPadding(paddingLength);
+        }
+        else
+        {
+            // Get the encoding on first use -it's the same for all properties in the dictionary
+            encoding ??= Encoding.GetEncoding(this.codePage);
+            entryName = br.ReadNullTerminatedStringWithEncoding(length, this.codePage, encoding);
         }
 
-        byte[] nameBytes = new byte[byteLength];
-        br.ReadExactly(nameBytes);
-
-        int nullByteCount = this.codePage == CodePages.WinUnicode ? 2 : 1;
-        int valueSize = Math.Max(0, nameBytes.Length - nullByteCount - paddingLength); // Only convert the actual characters, not the null terminator or padding
-
-        string entryName = encoding.GetString(nameBytes, 0, valueSize);
         entries!.Add(propertyIdentifier, entryName);
     }
 
