@@ -27,49 +27,45 @@ internal sealed class DictionaryProperty : IProperty
         uint numEntries = br.ReadUInt32();
 
         // Encoding.GetEncoding can actually be quite slow, so as all strings are in the same codepage, get the encoding once and then use it for each property.
-        Encoding encoding = Encoding.GetEncoding(codePage);
+        Encoding? encoding = null;
 
         for (uint i = 0; i < numEntries; i++)
         {
-            ReadEntry(br, encoding);
+            ReadEntry(br, ref encoding);
         }
 
         int m = (int)(br.BaseStream.Position - curPos) % 4;
 
         if (m > 0)
         {
-            for (int i = 0; i < m; i++)
-            {
-                br.ReadByte();
-            }
+            br.SkipPadding(m);
         }
     }
 
     // Read a single dictionary entry
-    private void ReadEntry(BinaryReader br, Encoding encoding)
+    private void ReadEntry(BinaryReader br, ref Encoding? encoding)
     {
         uint propertyIdentifier = br.ReadUInt32();
         int length = br.ReadInt32();
 
-        byte[] nameBytes;
+        string entryName;
 
+        // WinUnicode properties are padded so the length is a multiple of 4 bytes. We need to skip that padding.
         if (codePage == CodePages.WinUnicode)
         {
-            nameBytes = br.ReadBytes(length << 1);
+            entryName = br.ReadNullTerminatedWideString(length);
 
-            int m = length * 2 % 4;
-            if (m > 0)
-                br.ReadBytes(m);
+            int paddingLength = length * 2 % 4;
+            if (paddingLength > 0)
+                br.SkipPadding(paddingLength);
         }
         else
         {
-            nameBytes = br.ReadBytes(length);
+            // Get the encoding on first use -it's the same for all properties in the dictionary
+            encoding ??= Encoding.GetEncoding(this.codePage);
+            entryName = br.ReadNullTerminatedStringWithEncoding(length, this.codePage, encoding);
         }
 
-        int nullByteCount = this.codePage == CodePages.WinUnicode ? 2 : 1;
-        int nonNullSize = Math.Max(0, nameBytes.Length - nullByteCount);
-
-        string entryName = encoding.GetString(nameBytes, 0, nonNullSize);
         entries!.Add(propertyIdentifier, entryName);
     }
 
