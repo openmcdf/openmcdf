@@ -45,7 +45,7 @@ internal sealed class PropertySet
 
     public void Add(IDictionary<uint, string> propertyNames)
     {
-        DictionaryProperty dictionaryProperty = new(PropertyContext.CodePage)
+        DictionaryProperty dictionaryProperty = new(PropertyContext.CodePage, CodePages.GetEncodingForCodePage(PropertyContext.CodePage))
         {
             Value = propertyNames,
         };

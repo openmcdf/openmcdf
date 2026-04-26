@@ -44,7 +44,7 @@ public class PropertyFactoryTests
     {
         PropertyFactory factory = DefaultPropertyFactory.Default;
 
-        ITypedPropertyValue property = factory.CreateProperty(vType, CodePage, PropertyIdentifier);
+        ITypedPropertyValue property = factory.CreateProperty(vType, CodePage, Encoding.GetEncoding(CodePage), PropertyIdentifier);
 
         using var ms = new MemoryStream();
         using (var bw = new BinaryWriter(ms, Encoding.UTF8, true))
@@ -53,7 +53,7 @@ public class PropertyFactoryTests
             property.Write(bw);
         }
 
-        ITypedPropertyValue property2 = factory.CreateProperty(vType, CodePage, PropertyIdentifier);
+        ITypedPropertyValue property2 = factory.CreateProperty(vType, CodePage, Encoding.GetEncoding(CodePage), PropertyIdentifier);
         ms.Position = 0;
         using var br = new BinaryReader(ms, Encoding.UTF8, true);
         var actualType = (VTPropertyType)br.ReadUInt16();

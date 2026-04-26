@@ -5,11 +5,13 @@ namespace OpenMcdf.Ole;
 internal sealed class DictionaryProperty : IProperty
 {
     private readonly int codePage;
+    private readonly Encoding encoding;
     private Dictionary<uint, string>? entries = new();
 
-    public DictionaryProperty(int codePage)
+    public DictionaryProperty(int codePage, Encoding encoding)
     {
         this.codePage = codePage;
+        this.encoding = encoding;
     }
 
     public PropertyType PropertyType => PropertyType.DictionaryProperty;
@@ -26,12 +28,9 @@ internal sealed class DictionaryProperty : IProperty
 
         uint numEntries = br.ReadUInt32();
 
-        // Encoding.GetEncoding can actually be quite slow, so as all strings are in the same codepage, get the encoding once and then use it for each property.
-        Encoding? encoding = null;
-
         for (uint i = 0; i < numEntries; i++)
         {
-            ReadEntry(br, ref encoding);
+            ReadEntry(br);
         }
 
         int m = (int)(br.BaseStream.Position - curPos) % 4;
@@ -43,7 +42,7 @@ internal sealed class DictionaryProperty : IProperty
     }
 
     // Read a single dictionary entry
-    private void ReadEntry(BinaryReader br, ref Encoding? encoding)
+    private void ReadEntry(BinaryReader br)
     {
         uint propertyIdentifier = br.ReadUInt32();
         int length = br.ReadInt32();
@@ -61,9 +60,7 @@ internal sealed class DictionaryProperty : IProperty
         }
         else
         {
-            // Get the encoding on first use -it's the same for all properties in the dictionary
-            encoding ??= Encoding.GetEncoding(this.codePage);
-            entryName = br.ReadNullTerminatedStringWithEncoding(length, this.codePage, encoding);
+            entryName = br.ReadNullTerminatedStringWithEncoding(length, this.codePage, this.encoding);
         }
 
         entries!.Add(propertyIdentifier, entryName);
@@ -82,12 +79,9 @@ internal sealed class DictionaryProperty : IProperty
 
         bw.Write(entries!.Count);
 
-        // Encoding.GetEncoding can actually be quite slow, so as all strings are in the same codepage, get the encoding once and then use it for each property.
-        Encoding encoding = Encoding.GetEncoding(codePage);
-
         foreach (KeyValuePair<uint, string> kv in entries)
         {
-            WriteEntry(bw, kv.Key, kv.Value, encoding);
+            WriteEntry(bw, kv.Key, kv.Value);
         }
 
         int size = (int)(bw.BaseStream.Position - curPos);
@@ -95,7 +89,7 @@ internal sealed class DictionaryProperty : IProperty
     }
 
     // Write a single entry to the dictionary, and handle and required null termination and padding.
-    private void WriteEntry(BinaryWriter bw, uint propertyIdentifier, string name, Encoding encoding)
+    private void WriteEntry(BinaryWriter bw, uint propertyIdentifier, string name)
     {
         // Write the PropertyIdentifier
         bw.Write(propertyIdentifier);

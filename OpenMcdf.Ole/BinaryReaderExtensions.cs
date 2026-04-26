@@ -55,11 +55,5 @@ internal static class BinaryReaderExtensions
 #endif
     }
 
-    public static string ReadNullTerminatedString(this BinaryReader target, int byteLength, int codePage)
-    {
-        Encoding encoding = codePage == CodePages.WinUnicode ? Encoding.Unicode : Encoding.GetEncoding(codePage);
-        return target.ReadNullTerminatedStringWithEncoding(byteLength, codePage, encoding);
-    }
-
     public static string ReadNullTerminatedWideString(this BinaryReader target, int characterLength) => target.ReadNullTerminatedStringWithEncoding(byteLength: characterLength * 2, CodePages.WinUnicode, Encoding.Unicode);
 }

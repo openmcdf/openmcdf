@@ -1,4 +1,6 @@
-﻿namespace OpenMcdf.Ole;
+﻿using System.Text;
+
+namespace OpenMcdf.Ole;
 
 internal sealed class PropertySetStream
 {
@@ -73,13 +75,14 @@ internal sealed class PropertySetStream
         }
 
         PropertySet0.LoadContext((int)Offset0, br);  // Read CodePage, Locale
+        Encoding propertySet0Encoding = CodePages.GetEncodingForCodePage(PropertySet0.PropertyContext.CodePage); // Get the encoding once and use it for all properties to avoid repeasted lookups
 
         // Read properties (P0)
         for (int i = 0; i < propertyCount; i++)
         {
             PropertyIdentifierAndOffset propertyIdentifierAndOffset = PropertySet0.PropertyIdentifierAndOffsets[i];
             br.BaseStream.Seek(Offset0 + propertyIdentifierAndOffset.Offset, SeekOrigin.Begin);
-            IProperty property = ReadProperty(propertyIdentifierAndOffset.PropertyIdentifier, PropertySet0.PropertyContext.CodePage, br, factory);
+            IProperty property = ReadProperty(propertyIdentifierAndOffset.PropertyIdentifier, PropertySet0.PropertyContext.CodePage, propertySet0Encoding, br, factory);
             PropertySet0.Properties.Add(property);
         }
 
@@ -104,12 +107,16 @@ internal sealed class PropertySetStream
 
             PropertySet1.LoadContext((int)Offset1, br);
 
+            Encoding propertySet1Encoding =
+                PropertySet1.PropertyContext.CodePage == PropertySet0.PropertyContext.CodePage ? propertySet0Encoding :
+                    CodePages.GetEncodingForCodePage(PropertySet1.PropertyContext.CodePage); // Get the encoding once and use it for all properties to avoid repeasted lookups
+
             // Read properties
             for (int i = 0; i < propertyCount; i++)
             {
                 PropertyIdentifierAndOffset idAndOffset = PropertySet1.PropertyIdentifierAndOffsets[i];
                 br.BaseStream.Seek(Offset1 + idAndOffset.Offset, SeekOrigin.Begin);
-                IProperty property = ReadProperty(idAndOffset.PropertyIdentifier, PropertySet1.PropertyContext.CodePage, br, DefaultPropertyFactory.Default);
+                IProperty property = ReadProperty(idAndOffset.PropertyIdentifier, PropertySet1.PropertyContext.CodePage, propertySet1Encoding, br, DefaultPropertyFactory.Default);
                 PropertySet1.Properties.Add(property);
             }
         }
@@ -219,11 +226,11 @@ internal sealed class PropertySetStream
         }
     }
 
-    private static IProperty ReadProperty(uint propertyIdentifier, int codePage, BinaryReader br, PropertyFactory factory)
+    private static IProperty ReadProperty(uint propertyIdentifier, int codePage, Encoding encoding, BinaryReader br, PropertyFactory factory)
     {
         if (propertyIdentifier == SpecialPropertyIdentifiers.Dictionary)
         {
-            DictionaryProperty dictionaryProperty = new(codePage);
+            DictionaryProperty dictionaryProperty = new(codePage, encoding);
             dictionaryProperty.Read(br);
             return dictionaryProperty;
         }
@@ -231,7 +238,7 @@ internal sealed class PropertySetStream
         var vType = (VTPropertyType)br.ReadUInt16();
         br.ReadUInt16(); // Ushort Padding
 
-        ITypedPropertyValue pr = factory.CreateProperty(vType, codePage, propertyIdentifier);
+        ITypedPropertyValue pr = factory.CreateProperty(vType, codePage, encoding, propertyIdentifier);
         pr.Read(br);
 
         return pr;
