@@ -71,6 +71,21 @@ internal static class ThrowHelper
             throw new FileFormatException($"Invalid stream ID: {value:X8}.");
     }
 
+    public static void ThrowIfInvalidBinarySearchTree(bool condition)
+    {
+        if (condition)
+            throw new FileFormatException("Directory entries are not in a valid binary search tree.");
+    }
+
+    public static void ThrowIfInvalidColor(DirectoryEntry entry, DirectoryEntry sibling)
+    {
+        // TODO: Optional strict validation: Files written by LibreOffice have red-black violations.
+#if false
+        if (entry.Color is NodeColor.Red && sibling.Color is NodeColor.Red)
+            throw new FileFormatException("Red-black tree red-violation.");
+#endif
+    }
+
     public static void ThrowIfEnumerationNotStarted(bool started)
     {
         if (!started)

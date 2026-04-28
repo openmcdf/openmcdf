@@ -35,9 +35,9 @@ internal sealed class FilePickerService : IFilePickerService
                 {
                     Patterns = new[] { "*.xls", "*.doc", "*.ppt", "*.pub" },
                 },
-                new("OpenMcdf Test files (*.cfs)")
+                new("OpenMcdf Test files (*.cfb;*.cfs)")
                 {
-                    Patterns = new[] { "*.cfs" },
+                    Patterns = new[] { "*.cfb", "*.cfs" },
                 },
                 new("Outlook messages (*.msg)")
                 {

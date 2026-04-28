@@ -33,7 +33,7 @@ OpenMcdf v3 has a rewritten API and supports:
 - No support for single writer, multiple readers
 - No support for red-black tree balancing
 
-Directory entries are stored in a perfect binary tree where the entries are sorted but the tree is not balanced. i.e.
+Directory entries are stored in a binary search tree where the entries are sorted but the tree is not balanced. i.e.
 the tree is "all-black", which is a valid red-black tree but has suboptimal performance for traversing large trees
 (though still considerably faster than some other clients).
 

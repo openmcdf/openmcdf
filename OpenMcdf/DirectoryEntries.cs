@@ -74,17 +74,21 @@ internal sealed class DirectoryEntries : ContextBase, IDisposable
         return true;
     }
 
-    public DirectoryEntry? TryGetSibling(DirectoryEntry entry, SiblingType siblingType, bool validateColor)
+    public DirectoryEntry? TryGetSibling(DirectoryEntry entry, SiblingType siblingType, IDirectoryTreeValidator validator)
     {
-        uint siblingId = siblingType == SiblingType.Left ? entry.LeftSiblingId : entry.RightSiblingId;
+        uint siblingId = entry.GetSiblingId(siblingType);
         if (!TryGetDictionaryEntry(siblingId, out DirectoryEntry? sibling))
             return null;
 
-        int compare = DirectoryEntryComparer.Compare(sibling.NameCharSpan, entry.NameCharSpan);
-        if ((siblingType is SiblingType.Left && compare >= 0) || (siblingType is SiblingType.Right && compare <= 0))
-            throw new FileFormatException("Directory tree is not sorted.");
-        if (validateColor && entry.Color is NodeColor.Red && sibling.Color is NodeColor.Red)
-            throw new FileFormatException("Red-black tree red-violation.");
+        validator.Validate(entry, sibling, siblingType);
+        return sibling;
+    }
+
+    public DirectoryEntry GetSibling(DirectoryEntry entry, SiblingType siblingType, IDirectoryTreeValidator validator)
+    {
+        uint siblingId = entry.GetSiblingId(siblingType);
+        DirectoryEntry sibling = GetDictionaryEntry(siblingId);
+        validator.Validate(entry, sibling, siblingType);
         return sibling;
     }
 

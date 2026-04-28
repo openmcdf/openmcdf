@@ -23,7 +23,7 @@ internal sealed class DirectoryTree
         this.root = root;
     }
 
-    public bool TryGetDirectoryEntry(string name, [MaybeNullWhen(false)] out DirectoryEntry entry, bool validateColor = false)
+    public bool TryGetDirectoryEntry(string name, [MaybeNullWhen(false)] out DirectoryEntry entry)
     {
         if (!directories.TryGetDictionaryEntry(root.ChildId, out DirectoryEntry? child))
         {
@@ -32,6 +32,7 @@ internal sealed class DirectoryTree
         }
 
         ReadOnlySpan<char> nameSpan = name.AsSpan();
+        DirectoryTreeSearchOrderValidator validator = new();
         while (child is not null)
         {
             int compare = DirectoryEntryComparer.Compare(nameSpan, child.NameCharSpan);
@@ -42,21 +43,21 @@ internal sealed class DirectoryTree
             }
 
             SiblingType siblingType = compare < 0 ? SiblingType.Left : SiblingType.Right;
-            child = directories.TryGetSibling(child, siblingType, validateColor);
+            child = directories.TryGetSibling(child, siblingType, validator);
         }
 
         entry = null;
         return false;
     }
 
-    public DirectoryEntry GetParent(DirectoryEntry entry, out RelationType relation)
+    DirectoryEntry GetParent(DirectoryEntry entry, out RelationType relation)
     {
         if (!TryGetParent(entry, out DirectoryEntry? parent, out relation))
             throw new FileFormatException($"DirectoryEntry {entry} has no parent.");
         return parent;
     }
 
-    public bool TryGetParent(DirectoryEntry entry, [MaybeNullWhen(false)] out DirectoryEntry parent, out RelationType relation)
+    bool TryGetParent(DirectoryEntry entry, [MaybeNullWhen(false)] out DirectoryEntry parent, out RelationType relation)
     {
         if (!directories.TryGetDictionaryEntry(root.ChildId, out DirectoryEntry? child))
         {
@@ -67,6 +68,7 @@ internal sealed class DirectoryTree
 
         parent = root;
         relation = RelationType.Root;
+        DirectoryTreeSearchOrderValidator validator = new();
         while (child is not null)
         {
             int compare = DirectoryEntryComparer.Compare(entry.NameCharSpan, child.NameCharSpan);
@@ -74,13 +76,13 @@ internal sealed class DirectoryTree
             {
                 parent = child;
                 relation = RelationType.LeftSibling;
-                directories.TryGetDictionaryEntry(child.LeftSiblingId, out child);
+                child = directories.TryGetSibling(child, SiblingType.Left, validator);
             }
             else if (compare > 0)
             {
                 parent = child;
                 relation = RelationType.RightSibling;
-                directories.TryGetDictionaryEntry(child.RightSiblingId, out child);
+                child = directories.TryGetSibling(child, SiblingType.Right, validator);
             }
             else
             {
@@ -101,15 +103,14 @@ internal sealed class DirectoryTree
             return;
         }
 
+        DirectoryTreeSearchOrderValidator validator = new();
+
         while (true)
         {
-            uint leftId = currentEntry.LeftSiblingId;
-            uint rightId = currentEntry.RightSiblingId;
-
             int compare = DirectoryEntryComparer.Compare(entry.NameCharSpan, currentEntry.NameCharSpan);
             if (compare < 0)
             {
-                if (leftId == StreamId.NoStream)
+                if (currentEntry.LeftSiblingId == StreamId.NoStream)
                 {
                     currentEntry.LeftSiblingId = entry.Id;
                     directories.Write(currentEntry);
@@ -117,11 +118,11 @@ internal sealed class DirectoryTree
                     return;
                 }
 
-                currentEntry = directories.GetDictionaryEntry(leftId);
+                currentEntry = directories.GetSibling(currentEntry, SiblingType.Left, validator);
             }
             else if (compare > 0)
             {
-                if (rightId == StreamId.NoStream)
+                if (currentEntry.RightSiblingId == StreamId.NoStream)
                 {
                     currentEntry.RightSiblingId = entry.Id;
                     directories.Write(currentEntry);
@@ -129,7 +130,7 @@ internal sealed class DirectoryTree
                     return;
                 }
 
-                currentEntry = directories.GetDictionaryEntry(rightId);
+                currentEntry = directories.GetSibling(currentEntry, SiblingType.Right, validator);
             }
             else
             {
@@ -170,18 +171,10 @@ internal sealed class DirectoryTree
 
             if (entry.RightSiblingId != StreamId.NoStream)
             {
-                uint newRightChildParentId = entry.LeftSiblingId;
-                DirectoryEntry newRightChildParent;
-                while (true)
-                {
-                    newRightChildParent = directories.GetDictionaryEntry(newRightChildParentId);
-                    newRightChildParentId = newRightChildParent.RightSiblingId;
-                    if (newRightChildParent.RightSiblingId == StreamId.NoStream)
-                    {
-                        break;
-                    }
-                }
-
+                DirectoryTreeSearchOrderValidator validator = new();
+                DirectoryEntry newRightChildParent = directories.GetSibling(entry, SiblingType.Left, validator);
+                while (newRightChildParent.RightSiblingId != StreamId.NoStream)
+                    newRightChildParent = directories.GetSibling(newRightChildParent, SiblingType.Right, validator);
                 newRightChildParent.RightSiblingId = entry.RightSiblingId;
                 directories.Write(newRightChildParent);
             }
@@ -200,25 +193,27 @@ internal sealed class DirectoryTree
             if (child.Color is not NodeColor.Black)
                 throw new FileFormatException("Root child is not black.");
 
-            Validate(child);
+            DirectoryTreeTraversalOrderValidator validator = new();
+            Validate(child, validator);
         }
     }
 
     [ExcludeFromCodeCoverage]
-    void Validate(DirectoryEntry entry)
+    void Validate(DirectoryEntry entry, DirectoryTreeTraversalOrderValidator validator)
     {
-        DirectoryEntry? leftSibling = directories.TryGetSibling(entry, SiblingType.Left, false);
+        DirectoryEntry? leftSibling = directories.TryGetSibling(entry, SiblingType.Left, validator);
         if (leftSibling is not null)
-            Validate(leftSibling);
+            Validate(leftSibling, validator);
 
-        DirectoryEntry? rightSibling = directories.TryGetSibling(entry, SiblingType.Right, false);
+        DirectoryEntry? rightSibling = directories.TryGetSibling(entry, SiblingType.Right, validator);
         if (rightSibling is not null)
-            Validate(rightSibling);
+            Validate(rightSibling, validator);
 
         if (entry.ChildId != StreamId.NoStream)
         {
+            DirectoryTreeTraversalOrderValidator childValidator = new();
             DirectoryEntry child = directories.GetDictionaryEntry(entry.ChildId);
-            Validate(child);
+            Validate(child, childValidator);
         }
     }
 
@@ -232,7 +227,8 @@ internal sealed class DirectoryTree
     [ExcludeFromCodeCoverage]
     void WriteTrace(TextWriter writer, DirectoryEntry entry, int indent)
     {
-        DirectoryEntry? rightSibling = directories.TryGetSibling(entry, SiblingType.Right, false);
+        DirectoryTreeTraversalOrderValidator validator = new();
+        DirectoryEntry? rightSibling = directories.TryGetSibling(entry, SiblingType.Right, validator);
         if (rightSibling is not null)
             WriteTrace(writer, rightSibling, indent + 1);
 
@@ -240,7 +236,7 @@ internal sealed class DirectoryTree
             writer.Write("  ");
         writer.WriteLine(entry);
 
-        DirectoryEntry? leftSibling = directories.TryGetSibling(entry, SiblingType.Left, false);
+        DirectoryEntry? leftSibling = directories.TryGetSibling(entry, SiblingType.Left, validator);
         if (leftSibling is not null)
             WriteTrace(writer, leftSibling, indent + 1);
     }

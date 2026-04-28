@@ -121,6 +121,8 @@ internal sealed class DirectoryEntry : IEquatable<DirectoryEntry?>
         set => NameLength = (ushort)(Encoding.Unicode.GetBytes(value, 0, value.Length, Name, 0) + 2);
     }
 
+    public uint GetSiblingId(SiblingType siblingType) => siblingType is SiblingType.Left ? LeftSiblingId : RightSiblingId;
+
     public override int GetHashCode()
     {
         HashCode code = default;

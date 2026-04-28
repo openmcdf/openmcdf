@@ -9,13 +9,9 @@ internal sealed class DirectoryTreeEnumerator : IEnumerator<DirectoryEntry>
 {
     private readonly DirectoryEntries directories;
     private readonly DirectoryEntry root;
+    private readonly DirectoryTreeTraversalOrderValidator validator = new();
     private readonly Stack<DirectoryEntry> stack = new();
     DirectoryEntry? current;
-
-    // Brent's cycle detection algorithm
-    uint cycleLength = 1;
-    uint power = 1;
-    uint slowId = StreamId.NoStream;
 
     internal DirectoryTreeEnumerator(DirectoryEntries directories, DirectoryEntry root)
     {
@@ -50,19 +46,7 @@ internal sealed class DirectoryTreeEnumerator : IEnumerator<DirectoryEntry>
 
         current = stack.Pop();
 
-        if (current.Id == slowId && slowId != StreamId.NoStream)
-            throw new FileFormatException("Directory tree contains a loop.");
-
-        if (cycleLength == power)
-        {
-            cycleLength = 0;
-            power *= 2;
-            slowId = current.Id;
-        }
-
-        cycleLength++;
-
-        DirectoryEntry? rightSibling = directories.TryGetSibling(current, SiblingType.Right, false);
+        DirectoryEntry? rightSibling = directories.TryGetSibling(current, SiblingType.Right, validator);
         if (rightSibling is not null)
             PushLeft(rightSibling);
 
@@ -74,9 +58,7 @@ internal sealed class DirectoryTreeEnumerator : IEnumerator<DirectoryEntry>
     {
         current = null;
         stack.Clear();
-        cycleLength = 1;
-        power = 1;
-        slowId = StreamId.NoStream;
+        validator.Reset();
         if (root.ChildId != StreamId.NoStream)
         {
             DirectoryEntry child = directories.GetDictionaryEntry(root.ChildId);
@@ -88,8 +70,15 @@ internal sealed class DirectoryTreeEnumerator : IEnumerator<DirectoryEntry>
     {
         while (node is not null)
         {
+            // Entries pushed onto the stack must always be less than the previous entry
+            if (stack.Count > 0 && stack.Peek() is { } peek)
+            {
+                int compare = DirectoryEntryComparer.Compare(node.NameCharSpan, peek.NameCharSpan);
+                ThrowHelper.ThrowIfInvalidBinarySearchTree(compare >= 0);
+            }
+
             stack.Push(node);
-            node = directories.TryGetSibling(node, SiblingType.Left, false);
+            node = directories.TryGetSibling(node, SiblingType.Left, validator);
         }
     }
 }

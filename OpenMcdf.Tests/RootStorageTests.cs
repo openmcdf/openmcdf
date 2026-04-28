@@ -322,4 +322,41 @@ public sealed class RootStorageTests
 
         Assert.IsTrue(rootStorage.Validate());
     }
+
+    [TestMethod]
+    public void DirectoryTreeCycleThrowsFileFormatExceptionOnOpen()
+    {
+        using var root = RootStorage.OpenRead("DirectoryTreeCycle.cfb");
+        Assert.ThrowsExactly<FileFormatException>(() => root.TryOpenStorage("AB", out _));
+    }
+
+    [TestMethod]
+    public void DirectoryTreeCycleThrowsFileFormatExceptionOnEnumerate()
+    {
+        using var root = RootStorage.OpenRead("DirectoryTreeCycle.cfb");
+        var enumerator = root.EnumerateEntries().GetEnumerator();
+        Assert.ThrowsExactly<FileFormatException>(() =>
+        {
+            while (enumerator.MoveNext())
+            {
+                // No-op
+            }
+        });
+    }
+
+    [TestMethod]
+    public void DirectoryTreeCycleThrowsFileFormatExceptionOnCreate()
+    {
+        using MemoryStream stream = TestData.CreateMemoryStreamFromFile("DirectoryTreeCycle.cfb");
+        using var root = RootStorage.Open(stream);
+        Assert.ThrowsExactly<FileFormatException>(() => root.CreateStorage("AB"));
+    }
+
+    [TestMethod]
+    public void DirectoryTreeCycleThrowsFileFormatExceptionOnDelete()
+    {
+        using MemoryStream stream = TestData.CreateMemoryStreamFromFile("DirectoryTreeCycle.cfb");
+        using var root = RootStorage.Open(stream);
+        Assert.ThrowsExactly<FileFormatException>(() => root.Delete("AB"));
+    }
 }

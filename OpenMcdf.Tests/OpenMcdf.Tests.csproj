@@ -42,6 +42,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="*.cfb">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Update="*.cfs">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
