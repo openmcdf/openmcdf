@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Text;
 
 namespace OpenMcdf;
 
@@ -91,4 +92,14 @@ internal static class ThrowHelper
         if (!started)
             throw new InvalidOperationException("Enumeration has not started. Call MoveNext.");
     }
+
+    public static void ThrowIfDirectoryEntryStreamIdIsInvalid(uint streamId)
+    {
+        if (streamId > StreamId.Maximum)
+            throw new FileFormatException($"Invalid directory entry stream ID: {streamId:X8}.");
+    }
+
+    [DoesNotReturn]
+    public static void ThrowDirectoryEntryNotFound(uint streamId)
+        => throw new FileFormatException($"Directory entry {streamId} was not found.");
 }

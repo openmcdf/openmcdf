@@ -46,12 +46,15 @@ internal sealed class DirectoryEntries : ContextBase, IDisposable
     /// </summary>
     public DirectoryEntry GetDictionaryEntry(uint streamId)
     {
-        if (!TryGetDictionaryEntry(streamId, out DirectoryEntry? entry))
-            throw new FileFormatException($"Directory entry {streamId} was not found.");
+        ThrowHelper.ThrowIfDirectoryEntryStreamIdIsInvalid(streamId);
+
+        DirectoryEntry? entry = TryGetDictionaryEntryCore(streamId);
+        if (entry is null)
+            ThrowHelper.ThrowDirectoryEntryNotFound(streamId);
         return entry;
     }
 
-    public bool TryGetDictionaryEntry(uint streamId, [MaybeNullWhen(false)] out DirectoryEntry entry)
+    public bool TryGetDictionaryEntry(uint streamId, bool throwIfNotFound, [MaybeNullWhen(false)] out DirectoryEntry entry)
     {
         if (streamId == StreamId.NoStream)
         {
@@ -59,25 +62,31 @@ internal sealed class DirectoryEntries : ContextBase, IDisposable
             return false;
         }
 
-        if (streamId > StreamId.Maximum)
-            throw new FileFormatException($"Invalid directory entry stream ID: {streamId:X8}.");
+        ThrowHelper.ThrowIfDirectoryEntryStreamIdIsInvalid(streamId);
 
+        entry = TryGetDictionaryEntryCore(streamId);
+        if (entry is null && throwIfNotFound)
+            ThrowHelper.ThrowDirectoryEntryNotFound(streamId);
+        return entry is not null;
+    }
+
+    DirectoryEntry? TryGetDictionaryEntryCore(uint streamId)
+    {
         uint chainIndex = GetChainIndexAndEntryIndex(streamId, out long entryIndex);
         if (!fatChainEnumerator.MoveTo(chainIndex))
         {
-            entry = null;
-            return false;
+            return null;
         }
 
-        Context.Reader.Position = fatChainEnumerator.CurrentSector.Position + (entryIndex * DirectoryEntry.Length);
-        entry = Context.Reader.ReadDirectoryEntry(Context.Version, streamId);
-        return true;
+        CfbBinaryReader reader = Context.Reader;
+        reader.Position = fatChainEnumerator.CurrentSector.Position + (entryIndex * DirectoryEntry.Length);
+        return reader.ReadDirectoryEntry(Context.Version, streamId);
     }
 
     public DirectoryEntry? TryGetSibling(DirectoryEntry entry, SiblingType siblingType, IDirectoryTreeValidator validator)
     {
         uint siblingId = entry.GetSiblingId(siblingType);
-        if (!TryGetDictionaryEntry(siblingId, out DirectoryEntry? sibling))
+        if (!TryGetDictionaryEntry(siblingId, true, out DirectoryEntry? sibling))
             return null;
 
         validator.Validate(entry, sibling, siblingType);

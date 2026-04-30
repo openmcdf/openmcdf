@@ -367,7 +367,7 @@ public class Storage : ContextBase
 
     bool TryDeleteFirstChildEntry()
     {
-        bool found = Context.DirectoryEntries.TryGetDictionaryEntry(directoryEntry.ChildId, out DirectoryEntry? childEntry);
+        bool found = Context.DirectoryEntries.TryGetDictionaryEntry(directoryEntry.ChildId, true, out DirectoryEntry? childEntry);
         if (childEntry is not null)
             DeleteEntry(childEntry);
         return found;

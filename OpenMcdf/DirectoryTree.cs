@@ -25,7 +25,7 @@ internal sealed class DirectoryTree
 
     public bool TryGetDirectoryEntry(string name, [MaybeNullWhen(false)] out DirectoryEntry entry)
     {
-        if (!directories.TryGetDictionaryEntry(root.ChildId, out DirectoryEntry? child))
+        if (!directories.TryGetDictionaryEntry(root.ChildId, true, out DirectoryEntry? child))
         {
             entry = null;
             return false;
@@ -59,7 +59,7 @@ internal sealed class DirectoryTree
 
     bool TryGetParent(DirectoryEntry entry, [MaybeNullWhen(false)] out DirectoryEntry parent, out RelationType relation)
     {
-        if (!directories.TryGetDictionaryEntry(root.ChildId, out DirectoryEntry? child))
+        if (!directories.TryGetDictionaryEntry(root.ChildId, true, out DirectoryEntry? child))
         {
             parent = null;
             relation = RelationType.Root;
@@ -95,7 +95,7 @@ internal sealed class DirectoryTree
 
     public void Add(DirectoryEntry entry)
     {
-        if (!directories.TryGetDictionaryEntry(root.ChildId, out DirectoryEntry? currentEntry))
+        if (!directories.TryGetDictionaryEntry(root.ChildId, true, out DirectoryEntry? currentEntry))
         {
             root.ChildId = entry.Id;
             directories.Write(root);
@@ -187,9 +187,8 @@ internal sealed class DirectoryTree
     [ExcludeFromCodeCoverage]
     internal void Validate()
     {
-        if (root.ChildId != StreamId.NoStream)
+        if (directories.TryGetDictionaryEntry(root.ChildId, true, out DirectoryEntry? child))
         {
-            DirectoryEntry child = directories.GetDictionaryEntry(root.ChildId);
             if (child.Color is not NodeColor.Black)
                 throw new FileFormatException("Root child is not black.");
 
@@ -220,7 +219,7 @@ internal sealed class DirectoryTree
     [ExcludeFromCodeCoverage]
     internal void WriteTrace(TextWriter writer)
     {
-        if (directories.TryGetDictionaryEntry(root.ChildId, out DirectoryEntry? child))
+        if (directories.TryGetDictionaryEntry(root.ChildId, true, out DirectoryEntry? child))
             WriteTrace(writer, child, 0);
     }
 
