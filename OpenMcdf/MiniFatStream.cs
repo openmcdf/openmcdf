@@ -20,6 +20,8 @@ internal sealed class MiniFatStream : Stream
 
     RootContext Context => rootContextSite.Context;
 
+    long MaxStreamLength => Context.MaxStreamLength;
+
     internal DirectoryEntry DirectoryEntry { get; private set; }
 
     internal long ChainCapacity => ((Length + Context.MiniSectorSize - 1) / Context.MiniSectorSize) * Context.MiniSectorSize;
@@ -150,31 +152,19 @@ internal sealed class MiniFatStream : Stream
     {
         this.ThrowIfDisposed(isDisposed);
 
-        switch (origin)
+        long newPosition = origin switch
         {
-            case SeekOrigin.Begin:
-                if (offset < 0)
-                    ThrowHelper.ThrowSeekBeforeOrigin();
-                position = offset;
-                break;
+            SeekOrigin.Begin => offset,
+            SeekOrigin.Current => position + offset,
+            SeekOrigin.End => Length + offset,
+            _ => throw new ArgumentException("Invalid seek origin", nameof(origin)),
+        };
 
-            case SeekOrigin.Current:
-                if (position + offset < 0)
-                    ThrowHelper.ThrowSeekBeforeOrigin();
-                position += offset;
-                break;
-
-            case SeekOrigin.End:
-                if (Length + offset < 0)
-                    ThrowHelper.ThrowSeekBeforeOrigin();
-                position = Length + offset;
-                break;
-
-            default:
-                throw new ArgumentException("Invalid seek origin.", nameof(origin));
-        }
-
-        return position;
+        if (newPosition < 0)
+            ThrowHelper.ThrowSeekBeforeOrigin();
+        ThrowHelper.ThrowIfSeekBeyondMaximumLength(newPosition, MaxStreamLength);
+        position = newPosition;
+        return newPosition;
     }
 
     public override void SetLength(long value)

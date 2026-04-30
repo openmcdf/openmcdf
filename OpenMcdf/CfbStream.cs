@@ -10,6 +10,8 @@ public sealed class CfbStream : Stream
     private Stream stream;
     private bool isDisposed;
 
+    long MaxStreamLength => this.rootContextSite.Context.MaxStreamLength;
+
     internal CfbStream(RootContextSite rootContextSite, DirectoryEntry directoryEntry, Storage parent)
     {
         this.rootContextSite = rootContextSite;
@@ -93,8 +95,10 @@ public sealed class CfbStream : Stream
     private void EnsureLengthToWrite(int count)
     {
         long newPosition = Position + count;
+        if (newPosition > MaxStreamLength)
+            throw new IOException("Stream was too long");
         if (newPosition > stream.Length)
-            SetLength(newPosition);
+            SetLengthCore(newPosition);
     }
 
     /// <inheritdoc/>
@@ -102,10 +106,17 @@ public sealed class CfbStream : Stream
     {
         if (value < 0)
             throw new ArgumentOutOfRangeException(nameof(value));
+        if (value > MaxStreamLength)
+            throw new ArgumentOutOfRangeException(nameof(value));
 
         this.ThrowIfDisposed(isDisposed);
         this.ThrowIfNotWritable();
 
+        SetLengthCore(value);
+    }
+
+    void SetLengthCore(long value)
+    {
         if (value >= Header.MiniStreamCutoffSize && stream is MiniFatStream miniStream)
         {
             stream = miniStream.SwitchToFatStream(value);

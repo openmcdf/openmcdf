@@ -592,4 +592,18 @@ public sealed class StreamTests
         using CfbStream stream = rootStorage.CreateStream("Test");
         Assert.ThrowsExactly<IOException>(() => rootStorage.CreateStream("Test"));
     }
+
+    [TestMethod]
+    [DataRow(Version.V3, RootContext.MaximumV3StreamLength)]
+    [DataRow(Version.V4, SectorType.Maximum * 4096L)]
+    public void MaximumLength(Version version, long length)
+    {
+        using var rootStorage = RootStorage.CreateInMemory(version);
+        using CfbStream stream = rootStorage.CreateStream("Test");
+        Assert.Throws<ArgumentOutOfRangeException>(() => stream.SetLength(length + 1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => stream.Position = length + 1);
+
+        stream.Position = length;
+        Assert.Throws<IOException>(() => stream.WriteByte(0));
+    }
 }

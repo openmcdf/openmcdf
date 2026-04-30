@@ -16,6 +16,7 @@ enum IOContextFlags
 /// </summary>
 internal sealed class RootContext : ContextBase, IDisposable
 {
+    // V3 compound files are limited to 2 GB
     internal const long MaximumV3StreamLength = 2147483648;
     internal const uint RangeLockSectorOffset = 0x7FFFFF00;
     internal const uint RangeLockSectorId = RangeLockSectorOffset / (1 << Header.SectorShiftV4) - 1;
@@ -79,6 +80,8 @@ internal sealed class RootContext : ContextBase, IDisposable
 
     public int DirectoryEntriesPerSector { get; }
 
+    public long MaxStreamLength { get; }
+
     public Version Version => (Version)Header.MajorVersion;
 
     public long Length { get; private set; }
@@ -102,6 +105,8 @@ internal sealed class RootContext : ContextBase, IDisposable
         FatEntriesPerSector = SectorSize / sizeof(uint);
         DifatEntriesPerSector = FatEntriesPerSector - 1;
         DirectoryEntriesPerSector = SectorSize / DirectoryEntry.Length;
+        MaxStreamLength = Version is Version.V3 ? MaximumV3StreamLength : SectorType.Maximum * SectorSize;
+
         Length = stream.Length;
 
         if (contextFlags.HasFlag(IOContextFlags.Transacted))
