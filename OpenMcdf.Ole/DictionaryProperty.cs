@@ -5,11 +5,13 @@ namespace OpenMcdf.Ole;
 internal sealed class DictionaryProperty : IProperty
 {
     private readonly int codePage;
+    private readonly Encoding encoding;
     private Dictionary<uint, string>? entries = new();
 
-    public DictionaryProperty(int codePage)
+    public DictionaryProperty(int codePage, Encoding encoding)
     {
         this.codePage = codePage;
+        this.encoding = encoding;
     }
 
     public PropertyType PropertyType => PropertyType.DictionaryProperty;
@@ -26,50 +28,41 @@ internal sealed class DictionaryProperty : IProperty
 
         uint numEntries = br.ReadUInt32();
 
-        // Encoding.GetEncoding can actually be quite slow, so as all strings are in the same codepage, get the encoding once and then use it for each property.
-        Encoding encoding = Encoding.GetEncoding(codePage);
-
         for (uint i = 0; i < numEntries; i++)
         {
-            ReadEntry(br, encoding);
+            ReadEntry(br);
         }
 
         int m = (int)(br.BaseStream.Position - curPos) % 4;
 
         if (m > 0)
         {
-            for (int i = 0; i < m; i++)
-            {
-                br.ReadByte();
-            }
+            br.SkipPadding(m);
         }
     }
 
     // Read a single dictionary entry
-    private void ReadEntry(BinaryReader br, Encoding encoding)
+    private void ReadEntry(BinaryReader br)
     {
         uint propertyIdentifier = br.ReadUInt32();
         int length = br.ReadInt32();
 
-        byte[] nameBytes;
+        string entryName;
 
+        // WinUnicode properties are padded so the length is a multiple of 4 bytes. We need to skip that padding.
         if (codePage == CodePages.WinUnicode)
         {
-            nameBytes = br.ReadBytes(length << 1);
+            entryName = br.ReadNullTerminatedWideString(length);
 
-            int m = length * 2 % 4;
-            if (m > 0)
-                br.ReadBytes(m);
+            int paddingLength = length * 2 % 4;
+            if (paddingLength > 0)
+                br.SkipPadding(paddingLength);
         }
         else
         {
-            nameBytes = br.ReadBytes(length);
+            entryName = br.ReadNullTerminatedStringWithEncoding(length, this.codePage, this.encoding);
         }
 
-        int nullByteCount = this.codePage == CodePages.WinUnicode ? 2 : 1;
-        int nonNullSize = Math.Max(0, nameBytes.Length - nullByteCount);
-
-        string entryName = encoding.GetString(nameBytes, 0, nonNullSize);
         entries!.Add(propertyIdentifier, entryName);
     }
 
@@ -86,12 +79,9 @@ internal sealed class DictionaryProperty : IProperty
 
         bw.Write(entries!.Count);
 
-        // Encoding.GetEncoding can actually be quite slow, so as all strings are in the same codepage, get the encoding once and then use it for each property.
-        Encoding encoding = Encoding.GetEncoding(codePage);
-
         foreach (KeyValuePair<uint, string> kv in entries)
         {
-            WriteEntry(bw, kv.Key, kv.Value, encoding);
+            WriteEntry(bw, kv.Key, kv.Value);
         }
 
         int size = (int)(bw.BaseStream.Position - curPos);
@@ -99,7 +89,7 @@ internal sealed class DictionaryProperty : IProperty
     }
 
     // Write a single entry to the dictionary, and handle and required null termination and padding.
-    private void WriteEntry(BinaryWriter bw, uint propertyIdentifier, string name, Encoding encoding)
+    private void WriteEntry(BinaryWriter bw, uint propertyIdentifier, string name)
     {
         // Write the PropertyIdentifier
         bw.Write(propertyIdentifier);

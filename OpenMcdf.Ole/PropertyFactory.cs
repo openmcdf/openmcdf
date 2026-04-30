@@ -9,7 +9,7 @@ internal abstract class PropertyFactory
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
     }
 
-    public ITypedPropertyValue CreateProperty(VTPropertyType vType, int codePage, uint propertyIdentifier, bool isVariant = false)
+    public ITypedPropertyValue CreateProperty(VTPropertyType vType, int codePage, Encoding encoding, uint propertyIdentifier, bool isVariant = false)
     {
         ITypedPropertyValue pr = (VTPropertyType)((ushort)vType & 0x00FF) switch
         {
@@ -27,15 +27,15 @@ internal abstract class PropertyFactory
             VTPropertyType.VT_UI2 => new VT_UI2_Property(vType, isVariant),
             VTPropertyType.VT_UI4 => new VT_UI4_Property(vType, isVariant),
             VTPropertyType.VT_UI8 => new VT_UI8_Property(vType, isVariant),
-            VTPropertyType.VT_BSTR => new VT_LPSTR_Property(vType, codePage, isVariant),
-            VTPropertyType.VT_LPSTR => CreateLpstrProperty(vType, codePage, propertyIdentifier, isVariant),
+            VTPropertyType.VT_BSTR => new VT_LPSTR_Property(vType, codePage, encoding, isVariant),
+            VTPropertyType.VT_LPSTR => CreateLpstrProperty(vType, codePage, encoding, propertyIdentifier, isVariant),
             VTPropertyType.VT_LPWSTR => new VT_LPWSTR_Property(vType, isVariant),
             VTPropertyType.VT_FILETIME => new VT_FILETIME_Property(vType, isVariant),
             VTPropertyType.VT_DECIMAL => new VT_DECIMAL_Property(vType, isVariant),
             VTPropertyType.VT_BOOL => new VT_BOOL_Property(vType, isVariant),
             VTPropertyType.VT_EMPTY => new VT_EMPTY_Property(vType, isVariant),
             VTPropertyType.VT_NULL => new VT_NULL_Property(vType, isVariant),
-            VTPropertyType.VT_VARIANT_VECTOR => new VT_VariantVector(vType, codePage, isVariant, this, propertyIdentifier),
+            VTPropertyType.VT_VARIANT_VECTOR => new VT_VariantVector(vType, codePage, encoding, isVariant, this, propertyIdentifier),
             VTPropertyType.VT_CF => new VT_CF_Property(vType, isVariant),
             VTPropertyType.VT_BLOB_OBJECT or VTPropertyType.VT_BLOB => new VT_BLOB_Property(vType, isVariant),
             VTPropertyType.VT_CLSID => new VT_CLSID_Property(vType, isVariant),
@@ -44,7 +44,7 @@ internal abstract class PropertyFactory
         return pr;
     }
 
-    protected virtual ITypedPropertyValue CreateLpstrProperty(VTPropertyType vType, int codePage, uint propertyIdentifier, bool isVariant) => new VT_LPSTR_Property(vType, codePage, isVariant);
+    protected virtual ITypedPropertyValue CreateLpstrProperty(VTPropertyType vType, int codePage, Encoding encoding, uint propertyIdentifier, bool isVariant) => new VT_LPSTR_Property(vType, codePage, encoding, isVariant);
 
     #region Property implementations
 
@@ -302,21 +302,19 @@ internal abstract class PropertyFactory
     protected class VT_LPSTR_Property : TypedPropertyValue<string>
     {
         private readonly int codePage;
+        private readonly Encoding encoding;
 
-        public VT_LPSTR_Property(VTPropertyType vType, int codePage, bool isVariant)
+        public VT_LPSTR_Property(VTPropertyType vType, int codePage, Encoding encoding, bool isVariant)
             : base(vType, isVariant)
         {
             this.codePage = codePage;
+            this.encoding = encoding;
         }
 
         public override string ReadScalarValue(BinaryReader br)
         {
             int size = (int)br.ReadUInt32();
-            byte[] data = br.ReadBytes(size);
-            int nullByteCount = this.codePage == CodePages.WinUnicode ? 2 : 1;
-            int nonNullSize = Math.Max(0, size - nullByteCount);
-            string result = Encoding.GetEncoding(codePage).GetString(data, 0, nonNullSize);
-            return result;
+            return br.ReadNullTerminatedStringWithEncoding(size, codePage, encoding);
         }
 
         public override void WriteScalarValue(BinaryWriter bw, string pValue)
@@ -328,7 +326,7 @@ internal abstract class PropertyFactory
             }
             else if (codePage == CodePages.WinUnicode)
             {
-                byte[] data = Encoding.GetEncoding(codePage).GetBytes(pValue);
+                byte[] data = Encoding.Unicode.GetBytes(pValue);
 
                 // if (data.Length >= 2 && data[data.Length - 2] == '\0' && data[data.Length - 1] == '\0')
                 //    addNullTerminator = false;
@@ -352,7 +350,7 @@ internal abstract class PropertyFactory
             }
             else
             {
-                byte[] data = Encoding.GetEncoding(codePage).GetBytes(pValue);
+                byte[] data = this.encoding.GetBytes(pValue);
 
                 // if (data.Length >= 1 && data[data.Length - 1] == '\0')
                 //    addNullTerminator = false;
@@ -377,8 +375,8 @@ internal abstract class PropertyFactory
 
     protected sealed class VT_Unaligned_LPSTR_Property : VT_LPSTR_Property
     {
-        public VT_Unaligned_LPSTR_Property(VTPropertyType vType, int codePage, bool isVariant)
-            : base(vType, codePage, isVariant)
+        public VT_Unaligned_LPSTR_Property(VTPropertyType vType, int codePage, Encoding encoding, bool isVariant)
+            : base(vType, codePage, encoding, isVariant)
         {
             NeedsPadding = false;
         }
@@ -394,17 +392,7 @@ internal abstract class PropertyFactory
         public override string ReadScalarValue(BinaryReader br)
         {
             uint nChars = br.ReadUInt32();
-            string result;
-            if (nChars > 0)
-            {
-                byte[] data = br.ReadBytes((int)((nChars - 1) * 2));  // WChar- null terminator
-                br.ReadBytes(2); // Skip null terminator
-                result = Encoding.Unicode.GetString(data);
-            }
-            else
-            {
-                result = string.Empty;
-            }
+            string result = nChars > 0 ? br.ReadNullTerminatedWideString((int)nChars) : string.Empty;
 
             // result = result.Trim(new char[] { '\0' });
             return result;
@@ -581,11 +569,7 @@ internal abstract class PropertyFactory
         {
         }
 
-        public override Guid ReadScalarValue(BinaryReader br)
-        {
-            byte[] data = br.ReadBytes(16);
-            return new Guid(data);
-        }
+        public override Guid ReadScalarValue(BinaryReader br) => br.ReadGuid();
 
         public override void WriteScalarValue(BinaryWriter bw, Guid pValue)
         {
@@ -596,13 +580,15 @@ internal abstract class PropertyFactory
     private sealed class VT_VariantVector : TypedPropertyValue<object>
     {
         private readonly int codePage;
+        private readonly Encoding encoding;
         private readonly PropertyFactory factory;
         private readonly uint propertyIdentifier;
 
-        public VT_VariantVector(VTPropertyType vType, int codePage, bool isVariant, PropertyFactory factory, uint propertyIdentifier)
+        public VT_VariantVector(VTPropertyType vType, int codePage, Encoding encoding, bool isVariant, PropertyFactory factory, uint propertyIdentifier)
             : base(vType, isVariant)
         {
             this.codePage = codePage;
+            this.encoding = encoding;
             this.factory = factory;
             this.propertyIdentifier = propertyIdentifier;
             NeedsPadding = false;
@@ -613,7 +599,7 @@ internal abstract class PropertyFactory
             var vType = (VTPropertyType)br.ReadUInt16();
             br.ReadUInt16(); // Ushort Padding
 
-            ITypedPropertyValue p = factory.CreateProperty(vType, codePage, propertyIdentifier, true);
+            ITypedPropertyValue p = factory.CreateProperty(vType, codePage, encoding, propertyIdentifier, true);
             p.Read(br);
             return p;
         }
