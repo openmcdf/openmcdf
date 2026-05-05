@@ -27,13 +27,13 @@ internal sealed class FatStream : Stream
     internal long ChainCapacity => ((Length + Context.SectorSize - 1) / Context.SectorSize) * Context.SectorSize;
 
     /// <inheritdoc/>
-    public override bool CanRead => true;
+    public override bool CanRead => !isDisposed;
 
     /// <inheritdoc/>
-    public override bool CanSeek => true;
+    public override bool CanSeek => !isDisposed;
 
     /// <inheritdoc/>
-    public override bool CanWrite => Context.CanWrite;
+    public override bool CanWrite => !isDisposed && Context.CanWrite;
 
     /// <inheritdoc/>
     public override long Length => DirectoryEntry.StreamLength;

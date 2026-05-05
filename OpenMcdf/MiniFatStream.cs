@@ -24,11 +24,11 @@ internal sealed class MiniFatStream : Stream
 
     internal long ChainCapacity => ((Length + Context.MiniSectorSize - 1) / Context.MiniSectorSize) * Context.MiniSectorSize;
 
-    public override bool CanRead => true;
+    public override bool CanRead => !isDisposed;
 
-    public override bool CanSeek => true;
+    public override bool CanSeek => !isDisposed;
 
-    public override bool CanWrite => Context.CanWrite;
+    public override bool CanWrite => !isDisposed && Context.CanWrite;
 
     public override long Length => DirectoryEntry.StreamLength;
 
