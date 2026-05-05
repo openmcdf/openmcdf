@@ -55,7 +55,7 @@ internal abstract class TypedPropertyValue<T> : ITypedPropertyValue
                     int m = size % 4;
 
                     if (m > 0 && NeedsPadding)
-                        br.ReadBytes(4 - m); // padding
+                        br.SkipPadding(4 - m); // padding
                 }
 
                 break;
@@ -77,7 +77,7 @@ internal abstract class TypedPropertyValue<T> : ITypedPropertyValue
 
                         int pad = itemSize % 4;
                         if (pad > 0 && NeedsPadding)
-                            br.ReadBytes(4 - pad); // padding
+                            br.SkipPadding(4 - pad); // padding
                     }
 
                     propertyValue = res;
@@ -85,7 +85,7 @@ internal abstract class TypedPropertyValue<T> : ITypedPropertyValue
 
                     int m = size % 4;
                     if (m > 0 && NeedsPadding)
-                        br.ReadBytes(4 - m); // padding
+                        br.SkipPadding(4 - m); // padding
                 }
 
                 break;

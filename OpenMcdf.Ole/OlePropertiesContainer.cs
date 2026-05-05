@@ -260,9 +260,11 @@ public class OlePropertiesContainer
         PropertyFactory factory =
             ContainerType == ContainerType.DocumentSummaryInfo ? DocumentSummaryInfoPropertyFactory.Default : DefaultPropertyFactory.Default;
 
+        Encoding propertySet0Encoding = CodePages.GetEncodingForCodePage(ps.PropertySet0.PropertyContext.CodePage);
+
         foreach (OleProperty op in Properties)
         {
-            ITypedPropertyValue p = factory.CreateProperty(op.VTType, Context.CodePage, op.PropertyIdentifier);
+            ITypedPropertyValue p = factory.CreateProperty(op.VTType, Context.CodePage, propertySet0Encoding, op.PropertyIdentifier);
             p.Value = op.Value;
             ps.PropertySet0.Properties.Add(p);
             ps.PropertySet0.PropertyIdentifierAndOffsets.Add(new PropertyIdentifierAndOffset(op.PropertyIdentifier, 0));
@@ -283,10 +285,12 @@ public class OlePropertiesContainer
             // Add the dictionary containing the property names
             ps.PropertySet1.Add(UserDefinedProperties.PropertyNames!);
 
+            Encoding propertySet1Encoding = CodePages.GetEncodingForCodePage(ps.PropertySet1.PropertyContext.CodePage);
+
             // Add the properties themselves
             foreach (OleProperty op in UserDefinedProperties.Properties)
             {
-                ITypedPropertyValue p = DefaultPropertyFactory.Default.CreateProperty(op.VTType, ps.PropertySet1.PropertyContext.CodePage, op.PropertyIdentifier);
+                ITypedPropertyValue p = DefaultPropertyFactory.Default.CreateProperty(op.VTType, ps.PropertySet1.PropertyContext.CodePage, propertySet1Encoding, op.PropertyIdentifier);
                 p.Value = op.Value;
                 ps.PropertySet1.Properties.Add(p);
                 ps.PropertySet1.PropertyIdentifierAndOffsets.Add(new PropertyIdentifierAndOffset(op.PropertyIdentifier, 0));
