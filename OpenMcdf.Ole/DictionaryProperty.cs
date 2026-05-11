@@ -34,42 +34,24 @@ internal sealed class DictionaryProperty : IProperty
             ReadEntry(br, encoding);
         }
 
-        int m = (int)(br.BaseStream.Position - curPos) % 4;
-
-        if (m > 0)
-        {
-            for (int i = 0; i < m; i++)
-            {
-                br.ReadByte();
-            }
-        }
+        SkipPadding(br, curPos);
     }
 
     // Read a single dictionary entry
     private void ReadEntry(BinaryReader br, Encoding encoding)
     {
         uint propertyIdentifier = br.ReadUInt32();
-        int length = br.ReadInt32();
 
-        byte[] nameBytes;
+        long curPos = br.BaseStream.Position;
 
-        if (codePage == CodePages.WinUnicode)
+        string entryName = encoding.CodePage == CodePages.WinUnicode ? br.ReadLpwstr() : br.ReadCodePageString(encoding);
+
+        // WinUnicode strings are padded and we have to skip the padding. Other encodings are unpadded.
+        if (encoding.CodePage == CodePages.WinUnicode)
         {
-            nameBytes = br.ReadBytes(length << 1);
-
-            int m = length * 2 % 4;
-            if (m > 0)
-                br.ReadBytes(m);
-        }
-        else
-        {
-            nameBytes = br.ReadBytes(length);
+            SkipPadding(br, curPos);
         }
 
-        int nullByteCount = this.codePage == CodePages.WinUnicode ? 2 : 1;
-        int nonNullSize = Math.Max(0, nameBytes.Length - nullByteCount);
-
-        string entryName = encoding.GetString(nameBytes, 0, nonNullSize);
         entries!.Add(propertyIdentifier, entryName);
     }
 
@@ -104,32 +86,20 @@ internal sealed class DictionaryProperty : IProperty
         // Write the PropertyIdentifier
         bw.Write(propertyIdentifier);
 
-        // Encode string data with the current code page
-        byte[] nameBytes = encoding.GetBytes(name);
-        uint byteLength = (uint)nameBytes.Length;
-
         // If the code page is WINUNICODE, write the length as the number of characters and pad the length to a multiple of 4 bytes
         // Otherwise, write the length as the number of bytes and don't pad.
-        // In either case, the string must be null terminated
         if (codePage == CodePages.WinUnicode)
         {
-            // Two bytes padding for Unicode strings
-            byteLength += 2;
+            long curPos = bw.BaseStream.Position;
 
-            bw.Write(byteLength / 2);
-            bw.Write(nameBytes);
-            bw.Write((byte)0);
-            bw.Write((byte)0);
+            bw.WriteLpwstr(name);
 
-            WritePaddingIfNeeded(bw, (int)byteLength);
+            int size = (int)(bw.BaseStream.Position - curPos);
+            WritePaddingIfNeeded(bw, size);
         }
         else
         {
-            byteLength += 1;
-
-            bw.Write(byteLength);
-            bw.Write(nameBytes);
-            bw.Write((byte)0);
+            bw.WriteCodePageString(name, encoding);
         }
     }
 
@@ -142,6 +112,20 @@ internal sealed class DictionaryProperty : IProperty
         {
             for (int i = 0; i < 4 - m; i++) // padding
                 bw.Write((byte)0);
+        }
+    }
+
+    // Skip padding up to the 4 byte alignment, if needed
+    private static void SkipPadding(BinaryReader br, long startPos)
+    {
+        int m = (int)(br.BaseStream.Position - startPos) % 4;
+
+        if (m > 0)
+        {
+            for (int i = 0; i < m; i++)
+            {
+                br.ReadByte();
+            }
         }
     }
 }

@@ -309,70 +309,9 @@ internal abstract class PropertyFactory
             this.codePage = codePage;
         }
 
-        public override string ReadScalarValue(BinaryReader br)
-        {
-            int size = (int)br.ReadUInt32();
-            byte[] data = br.ReadBytes(size);
-            int nullByteCount = this.codePage == CodePages.WinUnicode ? 2 : 1;
-            int nonNullSize = Math.Max(0, size - nullByteCount);
-            string result = Encoding.GetEncoding(codePage).GetString(data, 0, nonNullSize);
-            return result;
-        }
+        public override string ReadScalarValue(BinaryReader br) => br.ReadCodePageString(Encoding.GetEncoding(codePage));
 
-        public override void WriteScalarValue(BinaryWriter bw, string pValue)
-        {
-            // bool addNullTerminator = true;
-            if (string.IsNullOrEmpty(pValue)) // || String.IsNullOrEmpty(pValue.Trim(new char[] { '\0' })))
-            {
-                bw.Write(0U);
-            }
-            else if (codePage == CodePages.WinUnicode)
-            {
-                byte[] data = Encoding.GetEncoding(codePage).GetBytes(pValue);
-
-                // if (data.Length >= 2 && data[data.Length - 2] == '\0' && data[data.Length - 1] == '\0')
-                //    addNullTerminator = false;
-                uint dataLength = (uint)data.Length;
-
-                // if (addNullTerminator)
-                dataLength += 2;            // null terminator \u+0000
-
-                // var mod = dataLength % 4;       // pad to multiple of 4 bytes
-                bw.Write(dataLength);           // data length of string + null char (unicode)
-                bw.Write(data);                 // string
-
-                // if (addNullTerminator)
-                // {
-                bw.Write('\0');                 // first byte of null unicode char
-                bw.Write('\0');                 // second byte of null unicode char
-                // }
-
-                // for (int i = 0; i < (4 - mod); i++)   // padding
-                //    bw.Write('\0');
-            }
-            else
-            {
-                byte[] data = Encoding.GetEncoding(codePage).GetBytes(pValue);
-
-                // if (data.Length >= 1 && data[data.Length - 1] == '\0')
-                //    addNullTerminator = false;
-                uint dataLength = (uint)data.Length;
-
-                // if (addNullTerminator)
-                dataLength += 1;            // null terminator \u+0000
-
-                bw.Write(dataLength);           // data length of string + null char (unicode)
-                bw.Write(data);                 // string
-
-                // if (addNullTerminator)
-                // {
-                bw.Write('\0');                 // null terminator'\0'
-                // }
-
-                // for (int i = 0; i < (4 - mod); i++)   // padding
-                //    bw.Write('\0');
-            }
-        }
+        public override void WriteScalarValue(BinaryWriter bw, string pValue) => bw.WriteCodePageString(pValue, Encoding.GetEncoding(codePage));
     }
 
     protected sealed class VT_Unaligned_LPSTR_Property : VT_LPSTR_Property
@@ -391,52 +330,9 @@ internal abstract class PropertyFactory
         {
         }
 
-        public override string ReadScalarValue(BinaryReader br)
-        {
-            uint nChars = br.ReadUInt32();
-            string result;
-            if (nChars > 0)
-            {
-                byte[] data = br.ReadBytes((int)((nChars - 1) * 2));  // WChar- null terminator
-                br.ReadBytes(2); // Skip null terminator
-                result = Encoding.Unicode.GetString(data);
-            }
-            else
-            {
-                result = string.Empty;
-            }
+        public override string ReadScalarValue(BinaryReader br) => br.ReadLpwstr();
 
-            // result = result.Trim(new char[] { '\0' });
-            return result;
-        }
-
-        public override void WriteScalarValue(BinaryWriter bw, string pValue)
-        {
-            byte[] data = Encoding.Unicode.GetBytes(pValue);
-
-            // The written data length field is the number of characters (not bytes) and must include a null terminator
-            // add a null terminator if there isn't one already
-            int byteLength = data.Length;
-
-            // bool addNullTerminator =
-            //    byteLength == 0 || data[byteLength - 1] != '\0' || data[byteLength - 2] != '\0';
-
-            // if (addNullTerminator)
-            byteLength += 2;
-
-            bw.Write((uint)byteLength / 2);
-            bw.Write(data);
-
-            // if (addNullTerminator)
-            // {
-            bw.Write((byte)0);
-            bw.Write((byte)0);
-            // }
-
-            // var mod = byteLength % 4;       // pad to multiple of 4 bytes
-            // for (int i = 0; i < (4 - mod); i++)   // padding
-            //    bw.Write('\0');
-        }
+        public override void WriteScalarValue(BinaryWriter bw, string pValue) => bw.WriteLpwstr(pValue);
     }
 
     private sealed class VT_FILETIME_Property : TypedPropertyValue<DateTime>
