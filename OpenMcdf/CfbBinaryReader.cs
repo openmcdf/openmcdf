@@ -8,7 +8,8 @@ namespace OpenMcdf;
 /// </summary>
 internal sealed class CfbBinaryReader : BinaryReader
 {
-    readonly byte[] guidBuffer = new byte[16];
+    const int GuidLength = 16;
+
     readonly byte[] buffer = new byte[DirectoryEntry.NameFieldLength];
 
     public CfbBinaryReader(Stream input)
@@ -26,9 +27,9 @@ internal sealed class CfbBinaryReader : BinaryReader
 
     public Guid ReadGuid()
     {
-        BaseStream.ReadExactly(guidBuffer, 0, guidBuffer.Length);
+        BaseStream.ReadExactly(buffer, 0, GuidLength);
 
-        return new Guid(guidBuffer);
+        return new Guid(buffer);
     }
 
     public DateTime ReadFileTime()
