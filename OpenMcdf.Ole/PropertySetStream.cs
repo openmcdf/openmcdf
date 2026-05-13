@@ -125,14 +125,14 @@ internal sealed class PropertySetStream
         bw.Write(ByteOrder);
         bw.Write(Version);
         bw.Write(SystemIdentifier);
-        bw.Write(CLSID.ToByteArray());
+        WriteGuid(bw, CLSID);
         bw.Write(NumPropertySets);
-        bw.Write(FMTID0.ToByteArray());
+        WriteGuid(bw, FMTID0);
         bw.Write(Offset0);
 
         if (NumPropertySets == 2)
         {
-            bw.Write(FMTID1.ToByteArray());
+            WriteGuid(bw, FMTID1);
             bw.Write(Offset1);
         }
 
@@ -230,5 +230,17 @@ internal sealed class PropertySetStream
         br.ReadUInt16(); // Ushort Padding
 
         return factory.ReadProperty(br, vType, codePage, propertyIdentifier);
+    }
+
+    private static void WriteGuid(BinaryWriter writer, in Guid value)
+    {
+#if NETSTANDARD2_0 || NETFRAMEWORK
+        byte[] bytes = value.ToByteArray();
+        writer.Write(bytes);
+#else
+        Span<byte> localBuffer = stackalloc byte[16];
+        value.TryWriteBytes(localBuffer);
+        writer.Write(localBuffer);
+#endif
     }
 }
