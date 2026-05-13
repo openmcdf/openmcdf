@@ -7,7 +7,7 @@ namespace OpenMcdf.Ole.Benchmarks;
 [MemoryDiagnoser]
 [HideColumns(Column.AllocRatio)]
 [MarkdownExporter]
-public class OpenMcdfOleBenchmarks : IDisposable
+public class OpenMcdfOleReadBenchmarks : IDisposable
 {
     private RootStorage? rootStorageLpstr;
     private RootStorage? rootStorageLWpstr;
