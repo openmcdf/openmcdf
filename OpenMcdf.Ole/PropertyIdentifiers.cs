@@ -26,6 +26,12 @@ public static class PropertyIdentifiers
         { 0x00000013, "PIDSI_DOC_SECURITY" },
     }.ToFrozenDictionary();
 
+    static readonly FrozenDictionary<uint, string> HwpSummaryInfo = new Dictionary<uint, string>(SummaryInfo)
+    {
+        { 0x000000014, "HWPPIDSI_DATE_STR" },
+        { 0x000000015, "HWPPIDSI_PARACOUNT" },
+    }.ToFrozenDictionary();
+
     static readonly FrozenDictionary<uint, string> DocumentSummaryInfo = new Dictionary<uint, string>()
     {
         { 0x00000001, "PIDDSI_CODEPAGE" },
@@ -67,6 +73,7 @@ public static class PropertyIdentifiers
             {
                 ContainerType.SummaryInfo => SummaryInfo,
                 ContainerType.DocumentSummaryInfo => DocumentSummaryInfo,
+                ContainerType.HwpSummaryInfo => HwpSummaryInfo,
                 _ => throw new ArgumentException("Unknown container type", nameof(map)),
             };
         }

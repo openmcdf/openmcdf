@@ -531,4 +531,25 @@ public class OlePropertiesExtensionsTests
         FileFormatException ex = Assert.Throws<FileFormatException>(() => new OlePropertiesContainer(stream));
         Assert.AreEqual("Required CodePage property not present", ex.Message);
     }
+
+    // A very basic test for reading the summary information from a .hwp file
+    [TestMethod]
+    public void TestReadBasicHwpFile()
+    {
+        using var cf = RootStorage.OpenRead("HelloWorld.hwp");
+        using CfbStream stream = cf.OpenStream(PropertySetNames.HwpSummaryInformation);
+        OlePropertiesContainer co = new(stream);
+
+        OleProperty revNumberProperty = co.Properties.First(prop => prop.PropertyName == "PIDSI_REVNUMBER");
+        Assert.AreEqual("9, 1, 1, 5656 PolarisOffice_", revNumberProperty.Value);
+
+        OleProperty pageCountProperty = co.Properties.First(prop => prop.PropertyName == "PIDSI_PAGECOUNT");
+        Assert.AreEqual(1, pageCountProperty.Value);
+
+        OleProperty createDateProperty = co.Properties.First(prop => prop.PropertyName == "PIDSI_CREATE_DTM");
+        Assert.AreEqual(new DateTime(2026, 4, 13, 10, 48, 15), createDateProperty.Value);
+
+        OleProperty lastSaveProperty = co.Properties.First(prop => prop.PropertyName == "PIDSI_LASTSAVE_DTM");
+        Assert.AreEqual(new DateTime(2026, 4, 13, 10, 48, 15), lastSaveProperty.Value);
+    }
 }
