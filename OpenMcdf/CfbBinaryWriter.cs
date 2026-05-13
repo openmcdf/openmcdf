@@ -1,5 +1,9 @@
 ﻿using System.Text;
 
+#if !NETSTANDARD2_0 && !NETFRAMEWORK
+using System.Runtime.InteropServices;
+#endif
+
 namespace OpenMcdf;
 
 /// <summary>
@@ -61,8 +65,13 @@ internal sealed class CfbBinaryWriter : BinaryWriter
         Write(header.MiniFatSectorCount);
         Write(header.FirstDifatSectorId);
         Write(header.DifatSectorCount);
+#if NETSTANDARD2_0 || NETFRAMEWORK
         for (int i = 0; i < Header.DifatArrayLength; i++)
             Write(header.Difat[i]);
+#else
+        ReadOnlySpan<byte> difat = MemoryMarshal.Cast<uint, byte>(header.Difat);
+        BaseStream.Write(difat);
+#endif
     }
 
     public void Write(DirectoryEntry entry)
