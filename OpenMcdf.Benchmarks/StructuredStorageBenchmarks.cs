@@ -15,7 +15,7 @@ internal static class StructuredStorageBenchmarks
         {
             int read = storageStream.Read(buffer, 0, buffer.Length);
             if (read <= 0)
-                throw new EndOfStreamException($"Read past end of stream at {storageStream.Position}/{storageStream.Length}");
+                throw new EndOfStreamException($"Read past end of stream at {storageStream.Position}/{storageStream.Length}.");
             totalRead += read;
         }
     }
@@ -31,7 +31,7 @@ internal static class StructuredStorageBenchmarks
         {
             int read = storageStream.Read(buffer, 0, buffer.Length);
             if (read <= 0)
-                throw new EndOfStreamException($"Read past end of stream at {storageStream.Position}/{storageStream.Length}");
+                throw new EndOfStreamException($"Read past end of stream at {storageStream.Position}/{storageStream.Length}.");
             totalRead += read;
         }
     }

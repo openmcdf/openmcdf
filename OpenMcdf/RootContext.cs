@@ -200,7 +200,7 @@ internal sealed class RootContext : ContextBase, IDisposable
     {
         Sector lastUsedSector = Fat.GetLastUsedSector();
         if (lastUsedSector.Id > SectorType.Maximum)
-            throw new FileFormatException("Last used sector is invalid");
+            throw new FileFormatException("Last used sector is invalid.");
 
         if (Version is Version.V4 && lastUsedSector.EndPosition < RangeLockSectorOffset)
             Fat.TrySetValue(RangeLockSectorId, SectorType.Free);

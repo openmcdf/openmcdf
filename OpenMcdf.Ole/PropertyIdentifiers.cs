@@ -67,7 +67,7 @@ public static class PropertyIdentifiers
             {
                 ContainerType.SummaryInfo => SummaryInfo,
                 ContainerType.DocumentSummaryInfo => DocumentSummaryInfo,
-                _ => throw new ArgumentException("Unknown container type", nameof(map)),
+                _ => throw new ArgumentException("Unknown container type.", nameof(map)),
             };
         }
         else

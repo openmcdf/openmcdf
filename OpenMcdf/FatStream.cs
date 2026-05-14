@@ -170,7 +170,7 @@ internal sealed class FatStream : Stream
             SeekOrigin.Begin => offset,
             SeekOrigin.Current => position + offset,
             SeekOrigin.End => Length + offset,
-            _ => throw new ArgumentException("Invalid seek origin", nameof(origin)),
+            _ => throw new ArgumentException("Invalid seek origin.", nameof(origin)),
         };
 
         if (newPosition < 0)

@@ -91,7 +91,7 @@ internal abstract class TypedPropertyValue<T> : ITypedPropertyValue
                 break;
 
             case PropertyDimensions.IsArray:
-                throw new NotImplementedException("Arrays are currently unimplemented");
+                throw new NotImplementedException("Arrays are currently unimplemented.");
 
             default:
                 break;
@@ -156,7 +156,7 @@ internal abstract class TypedPropertyValue<T> : ITypedPropertyValue
                 break;
 
             case PropertyDimensions.IsArray:
-                throw new NotImplementedException("Arrays are currently unimplemented");
+                throw new NotImplementedException("Arrays are currently unimplemented.");
         }
     }
 }

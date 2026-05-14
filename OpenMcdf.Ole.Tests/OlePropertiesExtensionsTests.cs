@@ -529,6 +529,6 @@ public class OlePropertiesExtensionsTests
         using CfbStream stream = cf.OpenStream(PropertySetNames.SummaryInformation);
 
         FileFormatException ex = Assert.Throws<FileFormatException>(() => new OlePropertiesContainer(stream));
-        Assert.AreEqual("Required CodePage property not present", ex.Message);
+        Assert.AreEqual("Required CodePage property not present.", ex.Message);
     }
 }

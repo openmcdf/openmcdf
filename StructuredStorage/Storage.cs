@@ -276,7 +276,7 @@ public sealed class Storage : IDisposable
         fixed (char* fileNamePtr = fileName)
         {
             if (storage is not IRootStorage rootStorage)
-                throw new InvalidOperationException("Not file storage");
+                throw new InvalidOperationException("Not file storage.");
             rootStorage.SwitchToFile(fileNamePtr);
         }
     }

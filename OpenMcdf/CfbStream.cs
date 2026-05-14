@@ -96,7 +96,7 @@ public sealed class CfbStream : Stream
     {
         long newPosition = Position + count;
         if (newPosition > MaxStreamLength)
-            throw new IOException("Stream was too long");
+            throw new IOException("Stream was too long.");
         if (newPosition > stream.Length)
             SetLengthCore(newPosition);
     }

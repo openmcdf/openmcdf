@@ -39,7 +39,7 @@ internal abstract class PropertyFactory
             VTPropertyType.VT_CF => new VT_CF_Property(vType, isVariant),
             VTPropertyType.VT_BLOB_OBJECT or VTPropertyType.VT_BLOB => new VT_BLOB_Property(vType, isVariant),
             VTPropertyType.VT_CLSID => new VT_CLSID_Property(vType, isVariant),
-            _ => throw new ArgumentException("Unrecognized property type"),
+            _ => throw new ArgumentException("Unrecognized property type."),
         };
         return pr;
     }

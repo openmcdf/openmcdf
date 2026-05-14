@@ -18,7 +18,7 @@ internal sealed class PropertySet
         int codePagePropertyIndex = PropertyIdentifierAndOffsets.FindIndex(static pio => pio.PropertyIdentifier == SpecialPropertyIdentifiers.CodePage);
         if (codePagePropertyIndex == -1)
         {
-            throw new FileFormatException("Required CodePage property not present");
+            throw new FileFormatException("Required CodePage property not present.");
         }
 
         PropertyIdentifierAndOffset codePageProperty = PropertyIdentifierAndOffsets[codePagePropertyIndex];
