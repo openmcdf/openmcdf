@@ -12,7 +12,7 @@
 
   <!-- Packaging -->
   <PropertyGroup>
-    <Version>3.1.3.0</Version>
+    <Version>3.1.4.0</Version>
     <Authors>ironfede,jeremy-visionaid</Authors>
     <Copyright>Copyright © 2010-2026, Federico Blaseotto, Jeremy Powell</Copyright>
     <PackageProjectUrl>https://openmcdf.github.io/openmcdf/</PackageProjectUrl>
