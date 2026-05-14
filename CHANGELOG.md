@@ -141,7 +141,7 @@
 ## 1.4.0
 
 * ADD: 'Remove' feature for storage and stream objects.
-* FIXED: ERROR in manipulation of streams with a length of 4096 bytes (cutoff bug) (Thx to meddingt)
+* FIXED: ERROR in manipulation of streams with a length of 4096 bytes (cutoff bug) (Thanks to meddingt)
 * FIXED: ERROR in zero sized streams
 
 ## 1.3.1
@@ -154,7 +154,7 @@
 
 ## 1.2
 
-* FIXED: Fixed ministream (<4096 bytes) bug;
+* FIXED: Fixed mini stream (<4096 bytes) bug;
 
 ## 1.1
 
