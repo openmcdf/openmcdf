@@ -1,0 +1,10 @@
+- name: API Reference
+  href: docs/api/
+- name: Changelog
+  href: CHANGELOG.md
+- name: License
+  href: https://www.mozilla.org/en-US/MPL/2.0/
+- name: GitHub
+  href: https://github.com/openmcdf/openmcdf
+- name: NuGet Gallery
+  href: https://www.nuget.org/packages/OpenMcdf/

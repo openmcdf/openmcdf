@@ -1,0 +1,35 @@
+{
+  "metadata": [
+    {
+      "src": [
+        {
+          "files": [
+            "OpenMcdf/OpenMcdf.csproj",
+            "OpenMcdf.Ole/OpenMcdf.Ole.csproj"
+          ]
+        }
+      ],
+      "dest": "docs/api"
+    }
+  ],
+  "build": {
+    "content": [
+      {
+        "files": [
+          "**/*.{md,yml}"
+        ]
+      }
+    ],
+    "globalMetadata": {
+      "_appName": "OpenMcdf",
+      "_appTitle": "OpenMcdf",
+      "_enableSearch": true,
+      "_appFooter": "Copyright &copy; 2010&#x2013;2026 Federico Blaseotto, Jeremy Powell. Licensed under the <a href=\"https://www.mozilla.org/en-US/MPL/2.0/\">Mozilla Public License 2.0</a>."
+    },
+    "dest": "docs/_site",
+    "template": [
+      "default",
+      "modern"
+    ]
+  }
+}
