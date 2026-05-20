@@ -1,5 +1,19 @@
 # OpenMcdf Changelog
 
+## 3.1.4
+
+* Enforce binary search tree validation
+* Improve strictness reading DirectoryEntry name length
+* Throw on missing directory entries
+* Throw when exceeding maximum stream length
+* Make CanRead/Seek/Write false on stream disposal
+* Improve exception messages
+
+## 3.1.3
+
+* Detect directory tree cycles with Brent's algorithm
+* Use throw helper for enumeration not started
+
 ## 3.1.2
 
 * Validate directory tree is sorted
@@ -82,11 +96,7 @@
 * FIXED: Issues with failed initialization to FREESECT (0xFFFFFFFF) of FAT sectors
 * FIXED: Issues with file-corruption detection
 
-## 2.0 - Stable release
-
-* Last SourceForge release
-
-## 2.0 pre-release
+## 2.0
 
 * ADD: Red-Black tree full implementation to speed up large data structure read access (thousands of stream/storage objects)
 * ADD: Enhanced Stream resizing
@@ -122,7 +132,7 @@
 
 * FIXED: Exception thrown when removing a stream of length equals to zero.
 
-## 1.5.0 - RC1
+## 1.5.0-rc.1
 
 * ADD: New Update mode to commit changes to the underlying stream
 * ADD: Sector recycle to reuse unallocated sectors
