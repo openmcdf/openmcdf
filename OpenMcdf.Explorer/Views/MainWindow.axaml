@@ -94,7 +94,7 @@
                             </TreeDataTemplate>
                         </TreeView.ItemTemplate>
                         <TreeView.ContextMenu>
-                            <ContextMenu x:CompileBindings="False">
+                            <ContextMenu>
                                 <MenuItem
                                     Command="{Binding AddStorageCommand}"
                                     Header="Add Storage..."
