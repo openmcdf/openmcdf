@@ -33,10 +33,6 @@ internal sealed class PropertySetStream
 
     public PropertySet? PropertySet1 { get; set; }
 
-    public PropertySetStream()
-    {
-    }
-
     public void Read(BinaryReader br)
     {
         br.BaseStream.Position = 0;
@@ -55,63 +51,12 @@ internal sealed class PropertySetStream
             Offset1 = br.ReadUInt32();
         }
 
-        uint size = br.ReadUInt32();
-        uint propertyCount = br.ReadUInt32();
-        PropertySet0 = new PropertySet
-        {
-            Size = size,
-        };
-
-        // Create appropriate property factory based on the stream type
-        PropertyFactory factory = FMTID0 == FormatIdentifiers.DocSummaryInformation ? DocumentSummaryInfoPropertyFactory.Default : DefaultPropertyFactory.Default;
-
-        // Read property offsets (P0)
-        for (int i = 0; i < propertyCount; i++)
-        {
-            PropertyIdentifierAndOffset pio = PropertyIdentifierAndOffset.Read(br);
-            PropertySet0.PropertyIdentifierAndOffsets.Add(pio);
-        }
-
-        PropertySet0.LoadContext((int)Offset0, br);  // Read CodePage, Locale
-
-        // Read properties (P0)
-        for (int i = 0; i < propertyCount; i++)
-        {
-            PropertyIdentifierAndOffset propertyIdentifierAndOffset = PropertySet0.PropertyIdentifierAndOffsets[i];
-            br.BaseStream.Seek(Offset0 + propertyIdentifierAndOffset.Offset, SeekOrigin.Begin);
-            IProperty property = ReadProperty(propertyIdentifierAndOffset.PropertyIdentifier, PropertySet0.PropertyContext.CodePage, br, factory);
-            PropertySet0.Properties.Add(property);
-        }
+        PropertySet0 = PropertySet.Read(FMTID0, br, Offset0);
 
         if (NumPropertySets == 2)
         {
             br.BaseStream.Seek(Offset1, SeekOrigin.Begin);
-
-            size = br.ReadUInt32();
-            propertyCount = br.ReadUInt32();
-
-            PropertySet1 = new PropertySet
-            {
-                Size = size,
-            };
-
-            // Read property offsets
-            for (int i = 0; i < propertyCount; i++)
-            {
-                PropertyIdentifierAndOffset pio = PropertyIdentifierAndOffset.Read(br);
-                PropertySet1.PropertyIdentifierAndOffsets.Add(pio);
-            }
-
-            PropertySet1.LoadContext((int)Offset1, br);
-
-            // Read properties
-            for (int i = 0; i < propertyCount; i++)
-            {
-                PropertyIdentifierAndOffset idAndOffset = PropertySet1.PropertyIdentifierAndOffsets[i];
-                br.BaseStream.Seek(Offset1 + idAndOffset.Offset, SeekOrigin.Begin);
-                IProperty property = ReadProperty(idAndOffset.PropertyIdentifier, PropertySet1.PropertyContext.CodePage, br, DefaultPropertyFactory.Default);
-                PropertySet1.Properties.Add(property);
-            }
+            PropertySet1 = PropertySet.Read(FMTID1, br, Offset1);
         }
     }
 
@@ -216,19 +161,6 @@ internal sealed class PropertySetStream
                 bw.Write((int)(oc1.PropertyOffsets[i] - oc1.OffsetPS));
             }
         }
-    }
-
-    private static IProperty ReadProperty(uint propertyIdentifier, int codePage, BinaryReader br, PropertyFactory factory)
-    {
-        if (propertyIdentifier == SpecialPropertyIdentifiers.Dictionary)
-        {
-            return DictionaryProperty.Read(br, codePage);
-        }
-
-        var vType = (VTPropertyType)br.ReadUInt16();
-        br.ReadUInt16(); // Ushort Padding
-
-        return factory.ReadProperty(br, vType, codePage, propertyIdentifier);
     }
 
     private static void WriteGuid(BinaryWriter writer, in Guid value)

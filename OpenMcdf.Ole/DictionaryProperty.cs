@@ -6,7 +6,7 @@ internal sealed class DictionaryProperty(int codePage, Dictionary<uint, string> 
 {
     private Dictionary<uint, string>? entries = entries;
 
-    public PropertyType PropertyType => PropertyType.DictionaryProperty;
+    public Dictionary<uint, string>? Entries => entries;
 
     public object? Value
     {
