@@ -65,7 +65,7 @@ public class OlePropertiesExtensionsTests
             Assert.AreEqual("A4 Paper (210x297 mm)", formatProperty.Value);
 
             // The manager property shouldn't exist, and we'll add it
-            Assert.IsFalse(co.Properties.Any(prop => prop.PropertyName == "PIDDSI_MANAGER"));
+            Assert.DoesNotContain(prop => prop.PropertyName == "PIDDSI_MANAGER", co.Properties);
 
             OleProperty managerProp = co.CreateProperty(VTPropertyType.VT_LPSTR, 0x0000000E, "PIDDSI_MANAGER");
             co.Add(managerProp);

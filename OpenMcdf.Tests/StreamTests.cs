@@ -278,7 +278,7 @@ public sealed class StreamTests
         using var rootStorage = RootStorage.CreateInMemory(version);
         for (int i = 0; i < streamCount; i++)
         {
-            Assert.AreEqual(i, rootStorage.EnumerateEntries().Count());
+            Assert.HasCount(i, rootStorage.EnumerateEntries());
 
             string streamName = $"TestStream{i}";
             using Stream stream = rootStorage.CreateStream(streamName);
