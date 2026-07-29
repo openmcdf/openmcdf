@@ -43,6 +43,19 @@ public sealed class StreamTests
     }
 
     [TestMethod]
+    [DataRow("TestStream_v3_0.cfs")]
+    public void WriteToReadOnlyStreamThrows(string fileName)
+    {
+        using var rootStorage = RootStorage.OpenRead(fileName);
+        using CfbStream stream = rootStorage.OpenStream("TestStream");
+        Assert.ThrowsExactly<NotSupportedException>(() => stream.WriteByte(0));
+        Assert.ThrowsExactly<NotSupportedException>(() => stream.Write([], 0, 0));
+#if !NETSTANDARD2_0 && !NETFRAMEWORK
+        Assert.ThrowsExactly<NotSupportedException>(() => stream.Write([]));
+#endif
+    }
+
+    [TestMethod]
     [DynamicData(nameof(TestData.ShortVersionsAndSizes), typeof(TestData))]
     public void ReadViaCopyTo(Version version, int length)
     {

@@ -34,6 +34,12 @@ internal static class ThrowHelper
             throw new ArgumentException("Stream must support seeking.", nameof(stream));
     }
 
+    public static void ThrowIfWritingNotSupported(this Stream stream)
+    {
+        if (!stream.CanWrite)
+            throw new ArgumentException("Stream must support writing.", nameof(stream));
+    }
+
     public static void ThrowIfNotWritable(this Stream stream)
     {
         if (!stream.CanWrite)
