@@ -5,7 +5,7 @@ namespace StructuredStorageExplorer;
 
 internal sealed class StreamByteProvider : IByteProvider, IDisposable
 {
-    CfbStream stream;
+    readonly CfbStream stream;
 
     bool hasChanges;
 

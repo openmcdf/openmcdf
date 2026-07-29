@@ -71,10 +71,10 @@ internal sealed class Program
         for (int k = 0; k < storageCount; k++)
         {
             Console.WriteLine($"Creating Storage {k}");
-            var storage = rootStorage.CreateStorage($"TestStorage{k}");
+            StructuredStorage.Storage storage = rootStorage.CreateStorage($"TestStorage{k}");
             for (int i = 0; i < streamCount; i++)
             {
-                using var stream = storage.CreateStream($"TestStream{i}");
+                using StructuredStorage.Stream stream = storage.CreateStream($"TestStream{i}");
 
                 int to = i == 0 ? writeCount : 1;
                 for (int j = 0; j < to; j++)
