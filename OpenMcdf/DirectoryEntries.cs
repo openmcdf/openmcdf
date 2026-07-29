@@ -32,6 +32,12 @@ internal sealed class DirectoryEntries : ContextBase, IDisposable
         else
         {
             RootEntry = GetDictionaryEntry(0);
+
+            // MS-CFB states the root storage object must be black, but the Windows Structured Storage implementation is red
+#if false
+            if (Context.IsStrict && RootEntry.Color is not NodeColor.Black)
+                throw new FileFormatException("Root child is not black.");
+#endif
         }
     }
 

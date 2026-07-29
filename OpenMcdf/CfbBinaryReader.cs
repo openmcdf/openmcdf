@@ -10,10 +10,12 @@ internal sealed class CfbBinaryReader : BinaryReader
 {
     readonly byte[] guidBuffer = new byte[16];
     readonly byte[] buffer = new byte[DirectoryEntry.NameFieldLength];
+    readonly bool strict;
 
-    public CfbBinaryReader(Stream input)
+    public CfbBinaryReader(Stream input, bool strict = false)
         : base(input, Encoding.Unicode, true)
     {
+        this.strict = strict;
     }
 
     public long Position
@@ -130,32 +132,30 @@ internal sealed class CfbBinaryReader : BinaryReader
 
         buffer.CopyTo(entry.Name, 0);
 
-        // TODO: Allow optional strict validation.
         // Name length is clamped and validated when reading or creating new entries.
-#if STRICT
-        if (entry.NameLength < 2)
-            throw new FileFormatException($"Name length {entry.NameLength} is less than minimum value 2.");
-        if (entry.NameLength % 2 != 0)
-            throw new FileFormatException($"Name length {entry.NameLength} is not a multiple of 2.");
-        if (entry.NameLength > DirectoryEntry.NameFieldLength)
-            throw new FileFormatException($"Name length {entry.NameLength} exceeds maximum value {DirectoryEntry.NameFieldLength}.");
-        if (entry.NameLength > 0 && entry.Name[entry.NameLength - 2] != 0)
-            throw new FileFormatException("Name must be null-terminated.");
-#endif
+        if (strict)
+        {
+            if (entry.NameLength % 2 != 0)
+                throw new FileFormatException($"Name length {entry.NameLength} is not a multiple of 2.");
+            if (entry.NameLength > DirectoryEntry.NameFieldLength)
+                throw new FileFormatException($"Name length {entry.NameLength} exceeds maximum value {DirectoryEntry.NameFieldLength}.");
+            if (entry.NameLength > 0 && entry.Name[entry.NameLength - 2] != 0)
+                throw new FileFormatException("Name must be null-terminated.");
+        }
 
         ThrowHelper.ThrowIfStreamIdIsInvalid(entry.LeftSiblingId);
         ThrowHelper.ThrowIfStreamIdIsInvalid(entry.RightSiblingId);
         ThrowHelper.ThrowIfStreamIdIsInvalid(entry.ChildId);
 
-#if STRICT
-        if (entry.Type is StorageType.Stream or StorageType.Root && entry.CreationTime != FileTime.UtcZero)
-            throw new FileFormatException("Creation time must be zero for streams and root.");
+        if (strict)
+        {
+            if (entry.Type is StorageType.Stream or StorageType.Root && entry.CreationTime != FileTime.UtcZero)
+                throw new FileFormatException("Creation time must be zero for streams and root.");
 
-        if (entry.Type is StorageType.Stream && entry.ModifiedTime != FileTime.UtcZero)
-            throw new FileFormatException("Modified time must be zero for streams.");
-#endif
+            if (entry.Type is StorageType.Stream && entry.ModifiedTime != FileTime.UtcZero)
+                throw new FileFormatException("Modified time must be zero for streams.");
+        }
 
-        // TODO: Allow optional strict validation.
         if (entry.Type is StorageType.Stream or StorageType.Root)
         {
             ThrowHelper.ThrowIfStreamIdIsInvalidInPractice(entry.StartSectorId);
@@ -163,7 +163,7 @@ internal sealed class CfbBinaryReader : BinaryReader
         else if (entry.Type is StorageType.Storage)
         {
             // Only 0 is valid for storage entries. However, NoStream and EndOfChain are used incorrectly in practice.
-            if (entry.StartSectorId is not 0 and not SectorType.EndOfChain and not StreamId.NoStream)
+            if (strict && entry.StartSectorId is not 0 and not SectorType.EndOfChain and not StreamId.NoStream)
                 throw new FileFormatException($"Invalid stream ID: {entry.StartSectorId:X8}.");
         }
 

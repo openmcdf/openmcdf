@@ -9,6 +9,7 @@ enum IOContextFlags
     Create = 1,
     LeaveOpen = 2,
     Transacted = 4,
+    StrictValidation = 8,
 }
 
 /// <summary>
@@ -69,6 +70,8 @@ internal sealed class RootContext : ContextBase, IDisposable
     [MemberNotNullWhen(true, nameof(transactedStream))]
     public bool CanCommit => transactedStream is not null;
 
+    public bool IsStrict => contextFlags.HasFlag(IOContextFlags.StrictValidation);
+
     public bool IsDisposed { get; private set; }
 
     /// <summary>
@@ -102,7 +105,7 @@ internal sealed class RootContext : ContextBase, IDisposable
 
         bool create = contextFlags.HasFlag(IOContextFlags.Create);
 
-        using CfbBinaryReader reader = new(stream);
+        using CfbBinaryReader reader = new(stream, IsStrict);
         Header = create ? new(version) : reader.ReadHeader();
         SectorSize = 1 << Header.SectorShift;
         MiniSectorSize = 1 << Header.MiniSectorShift;
@@ -124,7 +127,7 @@ internal sealed class RootContext : ContextBase, IDisposable
             Stream = stream;
         }
 
-        Reader = new(Stream);
+        Reader = new(Stream, IsStrict);
         if (stream.CanWrite)
             writer = new(Stream);
 

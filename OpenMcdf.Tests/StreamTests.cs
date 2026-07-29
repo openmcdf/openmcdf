@@ -32,7 +32,7 @@ public sealed class StreamTests
     [DataRow("TestStream_v3_0.cfs")]
     public void OpenStream(string fileName)
     {
-        using var rootStorage = RootStorage.OpenRead(fileName);
+        using var rootStorage = RootStorage.OpenRead(fileName, StorageModeFlags.StrictValidation);
         Assert.IsTrue(rootStorage.TryOpenStream("TestStream", out CfbStream? _));
         Assert.IsFalse(rootStorage.TryOpenStream(string.Empty, out CfbStream? _));
 
@@ -65,7 +65,7 @@ public sealed class StreamTests
             expectedStream.WriteByte((byte)i);
 
         string fileName = $"TestStream_v{(int)version}_{length}.cfs";
-        using var rootStorage = RootStorage.OpenRead(fileName);
+        using var rootStorage = RootStorage.OpenRead(fileName, StorageModeFlags.StrictValidation);
 
         using Stream stream = rootStorage.OpenStream("TestStream");
         Assert.AreEqual(length, stream.Length);
@@ -85,7 +85,7 @@ public sealed class StreamTests
         byte[] expectedBuffer = TestData.CreateByteArray(length);
 
         string fileName = $"TestStream_v{(int)version}_{length}.cfs";
-        using var rootStorage = RootStorage.OpenRead(fileName);
+        using var rootStorage = RootStorage.OpenRead(fileName, StorageModeFlags.StrictValidation);
 
         using Stream stream = rootStorage.OpenStream("TestStream");
         Assert.AreEqual(length, stream.Length);
@@ -102,7 +102,7 @@ public sealed class StreamTests
     public void ReadSingleByte(Version version, int length)
     {
         string fileName = $"TestStream_v{(int)version}_{length}.cfs";
-        using var rootStorage = RootStorage.OpenRead(fileName);
+        using var rootStorage = RootStorage.OpenRead(fileName, StorageModeFlags.StrictValidation);
         using Stream stream = rootStorage.OpenStream("TestStream");
         Assert.AreEqual(length, stream.Length);
 
@@ -128,7 +128,7 @@ public sealed class StreamTests
     public void Seek(Version version, int length)
     {
         string fileName = $"TestStream_v{(int)version}_{length}.cfs";
-        using var rootStorage = RootStorage.OpenRead(fileName);
+        using var rootStorage = RootStorage.OpenRead(fileName, StorageModeFlags.StrictValidation);
         using Stream stream = rootStorage.OpenStream("TestStream");
 
         Assert.AreEqual(0, stream.Seek(0, SeekOrigin.Begin));
@@ -195,7 +195,7 @@ public sealed class StreamTests
         }
 
         byte[] actualBuffer = new byte[length];
-        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.LeaveOpen))
+        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.LeaveOpen | StorageModeFlags.StrictValidation))
         {
             using CfbStream stream = rootStorage.OpenStream("TestStream");
             rootStorage.Validate();
@@ -239,7 +239,7 @@ public sealed class StreamTests
         }
 
         byte[] actualBuffer = new byte[length];
-        using (var rootStorage = RootStorage.OpenRead(fileName))
+        using (var rootStorage = RootStorage.OpenRead(fileName, StorageModeFlags.StrictValidation))
         {
             using CfbStream stream = rootStorage.OpenStream("TestStream");
             rootStorage.Validate();
@@ -313,7 +313,7 @@ public sealed class StreamTests
             stream.Write(expectedBuffer, 0, expectedBuffer.Length);
         }
 
-        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.LeaveOpen))
+        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.LeaveOpen | StorageModeFlags.StrictValidation))
         {
             using CfbStream stream = rootStorage.CreateStream("TestStream2");
             Assert.AreEqual(0, stream.Length);
@@ -321,7 +321,7 @@ public sealed class StreamTests
             stream.Write(expectedBuffer, 0, expectedBuffer.Length);
         }
 
-        using (var rootStorage = RootStorage.Open(memoryStream))
+        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.StrictValidation))
         {
             rootStorage.Validate();
 
@@ -375,7 +375,7 @@ public sealed class StreamTests
             stream.Write(expectedBuffer, 0, expectedBuffer.Length);
         }
 
-        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.LeaveOpen | StorageModeFlags.Transacted))
+        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.LeaveOpen | StorageModeFlags.Transacted | StorageModeFlags.StrictValidation))
         {
             using (CfbStream stream = rootStorage.CreateStream("TestStream2"))
             {
@@ -387,7 +387,7 @@ public sealed class StreamTests
             rootStorage.Commit();
         }
 
-        using (var rootStorage = RootStorage.Open(memoryStream))
+        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.StrictValidation))
         {
             rootStorage.Validate();
 
@@ -426,7 +426,7 @@ public sealed class StreamTests
             stream.Write(expectedBuffer, 0, expectedBuffer.Length);
         }
 
-        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.Transacted))
+        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.Transacted | StorageModeFlags.StrictValidation))
         {
             using CfbStream stream = rootStorage.OpenStream("TestStream1");
             byte[] actualBuffer = new byte[length];
@@ -450,7 +450,7 @@ public sealed class StreamTests
             stream.Write(expectedBuffer, 0, expectedBuffer.Length);
         }
 
-        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.LeaveOpen | StorageModeFlags.Transacted))
+        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.LeaveOpen | StorageModeFlags.Transacted | StorageModeFlags.StrictValidation))
         {
             using CfbStream stream = rootStorage.CreateStream("TestStream2");
             Assert.AreEqual(0, stream.Length);
@@ -459,7 +459,7 @@ public sealed class StreamTests
             rootStorage.Revert();
         }
 
-        using (var rootStorage = RootStorage.Open(memoryStream))
+        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.StrictValidation))
         {
             rootStorage.Validate();
 

@@ -44,6 +44,11 @@ public enum StorageModeFlags
     /// Allows the compound file to be used in a transacted context, enabling rollback of changes.
     /// </summary>
     Transacted = 0x02,
+
+    /// <summary>
+    /// Enables strict validation of the compound file structure, throwing exceptions for any inconsistencies or errors.
+    /// </summary>
+    StrictValidation = 0x04,
 }
 
 /// <summary>
@@ -98,6 +103,8 @@ public sealed class RootStorage : Storage, IDisposable
             contextFlags |= IOContextFlags.LeaveOpen;
         if (flags.HasFlag(StorageModeFlags.Transacted))
             contextFlags |= IOContextFlags.Transacted;
+        if (flags.HasFlag(StorageModeFlags.StrictValidation))
+            contextFlags |= IOContextFlags.StrictValidation;
         return contextFlags;
     }
 
