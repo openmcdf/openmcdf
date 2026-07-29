@@ -59,10 +59,18 @@ public sealed class RootStorage : Storage, IDisposable
             throw new ArgumentException("Append mode is not valid for compound files.", nameof(mode));
     }
 
-    private static void ThrowIfInvalid(FileAccess access)
+    private static void ThrowIfInvalid(FileMode mode, FileAccess access)
+    {
+        if (mode is FileMode.Create or FileMode.CreateNew && access is FileAccess.Read)
+            throw new ArgumentException($"{nameof(FileMode)} {mode} is not valid in conjunction with {nameof(FileAccess)} {access}.", nameof(mode));
+    }
+
+    private static void ThrowIfInvalid(FileAccess access, StorageModeFlags storageMode)
     {
         if (access is FileAccess.Write)
             throw new ArgumentException("Write-only access is not valid for compound files.", nameof(access));
+        if (!access.HasFlag(FileAccess.ReadWrite))
+            ThrowIfTransacted(storageMode);
     }
 
     private static void ThrowIfInvalid(Version version)
@@ -75,6 +83,12 @@ public sealed class RootStorage : Storage, IDisposable
     {
         if (flags.HasFlag(StorageModeFlags.LeaveOpen))
             throw new ArgumentException($"{StorageModeFlags.LeaveOpen} is only valid for injected streams.");
+    }
+
+    private static void ThrowIfTransacted(StorageModeFlags flags)
+    {
+        if (flags.HasFlag(StorageModeFlags.Transacted))
+            throw new ArgumentException($"{StorageModeFlags.Transacted} requires read-write access.", nameof(flags));
     }
 
     private static IOContextFlags ToIOContextFlags(StorageModeFlags flags)
@@ -119,6 +133,7 @@ public sealed class RootStorage : Storage, IDisposable
             throw new ArgumentNullException(nameof(stream));
 
         stream.ThrowIfSeekingNotSupported();
+        stream.ThrowIfWritingNotSupported();
         ThrowIfInvalid(version);
 
         stream.SetLength(0);
@@ -177,7 +192,8 @@ public sealed class RootStorage : Storage, IDisposable
             throw new ArgumentNullException(nameof(fileName));
 
         ThrowIfInvalid(mode);
-        ThrowIfInvalid(access);
+        ThrowIfInvalid(mode, access);
+        ThrowIfInvalid(access, flags);
         ThrowIfLeaveOpen(flags);
 
         FileStream stream = File.Open(fileName, mode, access);
@@ -196,6 +212,8 @@ public sealed class RootStorage : Storage, IDisposable
             throw new ArgumentNullException(nameof(stream));
 
         stream.ThrowIfSeekingNotSupported();
+        if (!stream.CanWrite)
+            ThrowIfTransacted(flags);
         stream.Position = 0;
 
         IOContextFlags contextFlags = ToIOContextFlags(flags);
@@ -216,6 +234,7 @@ public sealed class RootStorage : Storage, IDisposable
             throw new ArgumentNullException(nameof(fileName));
 
         ThrowIfLeaveOpen(flags);
+        ThrowIfTransacted(flags);
 
         FileStream stream = File.OpenRead(fileName);
         return Open(stream, flags);
@@ -336,6 +355,9 @@ public sealed class RootStorage : Storage, IDisposable
     {
         if (stream is null)
             throw new ArgumentNullException(nameof(stream));
+
+        ThrowHelper.ThrowIfSeekingNotSupported(stream);
+        ThrowHelper.ThrowIfWritingNotSupported(stream);
 
         SwitchToCore(stream, true);
     }

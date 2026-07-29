@@ -10,6 +10,9 @@ public sealed class RootStorageTests
     [DataRow("TestStream_v3_0.cfs")]
     public void Open(string fileName)
     {
+        Assert.ThrowsExactly<ArgumentException>(() => RootStorage.Open(nameof(fileName), FileMode.Create, FileAccess.Read));
+        Assert.ThrowsExactly<ArgumentException>(() => RootStorage.Open(nameof(fileName), FileMode.Open, FileAccess.Read, StorageModeFlags.Transacted));
+
         using var rootStorage = RootStorage.OpenRead(fileName);
         Assert.IsFalse(rootStorage.CanWrite);
         Assert.IsFalse(rootStorage.CanCommit);
@@ -143,6 +146,17 @@ public sealed class RootStorageTests
     }
 
     [TestMethod]
+    public void SwitchStreamThrows()
+    {
+        using var rootStorage = RootStorage.CreateInMemory();
+        using (FileStream createStream = File.Create("ReadOnly.cfb"))
+        {
+        }
+        using FileStream stream = File.OpenRead("ReadOnly.cfb");
+        Assert.ThrowsExactly<ArgumentException>(() => rootStorage.SwitchTo(stream));
+    }
+
+    [TestMethod]
     [DataRow(Version.V3, 0)]
     [DataRow(Version.V3, 1)]
     [DataRow(Version.V3, 2)]
@@ -257,6 +271,17 @@ public sealed class RootStorageTests
             for (int i = 0; i < subStorageCount; i++)
                 rootStorage.OpenStorage($"Test{i}");
         }
+    }
+
+    [TestMethod]
+    public void OpenReadOnlyTransactedStreamThrows()
+    {
+        string fileName = $"{nameof(OpenReadOnlyTransactedStreamThrows)}.cfs";
+        using (FileStream createStream = File.Create(fileName))
+        {
+        }
+        using FileStream stream = new(fileName, FileMode.Open, FileAccess.Read);
+        Assert.ThrowsExactly<ArgumentException>(() => RootStorage.Open(stream, StorageModeFlags.Transacted));
     }
 
     [TestMethod]
