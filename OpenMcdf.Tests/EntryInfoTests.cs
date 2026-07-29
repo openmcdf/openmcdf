@@ -11,7 +11,7 @@ public sealed class EntryInfoTests
     {
         using var rootStorage = RootStorage.OpenRead(fileName);
         IEnumerable<EntryInfo> entries = rootStorage.EnumerateEntries();
-        Assert.AreEqual(1, entries.Count());
+        Assert.HasCount(1, entries);
 
         EntryInfo entry = entries.First();
         Assert.AreEqual(type, entry.Type);

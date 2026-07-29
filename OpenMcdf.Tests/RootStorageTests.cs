@@ -43,7 +43,7 @@ public sealed class RootStorageTests
             using (CfbStream stream = rootStorage.CreateStream("Test"))
                 stream.Write(buffer, 0, buffer.Length);
 
-            Assert.AreEqual(1, rootStorage.EnumerateEntries().Count());
+            Assert.HasCount(1, rootStorage.EnumerateEntries());
 
             rootStorage.Flush(true);
 
@@ -58,7 +58,7 @@ public sealed class RootStorageTests
 
         using (var rootStorage = RootStorage.Create(memoryStream, version, StorageModeFlags.LeaveOpen))
         {
-            Assert.AreEqual(0, rootStorage.EnumerateEntries().Count());
+            Assert.IsEmpty(rootStorage.EnumerateEntries());
         }
     }
 
@@ -78,7 +78,7 @@ public sealed class RootStorageTests
                 using (CfbStream stream = rootStorage.CreateStream("Test"))
                     stream.Write(buffer, 0, buffer.Length);
 
-                Assert.AreEqual(1, rootStorage.EnumerateEntries().Count());
+                Assert.HasCount(1, rootStorage.EnumerateEntries());
 
                 if (flags.HasFlag(StorageModeFlags.Transacted))
                     rootStorage.Commit();
@@ -98,7 +98,7 @@ public sealed class RootStorageTests
 
             using (var rootStorage = RootStorage.OpenRead(fileName))
             {
-                Assert.AreEqual(0, rootStorage.EnumerateEntries().Count());
+                Assert.IsEmpty(rootStorage.EnumerateEntries());
             }
         }
         finally
@@ -132,7 +132,7 @@ public sealed class RootStorageTests
         using (var rootStorage = RootStorage.Open(switchedMemoryStream, StorageModeFlags.LeaveOpen))
         {
             IEnumerable<EntryInfo> entries = rootStorage.EnumerateEntries();
-            Assert.AreEqual(subStorageCount, entries.Count());
+            Assert.HasCount(subStorageCount, entries);
 
             for (int i = 0; i < subStorageCount; i++)
                 rootStorage.OpenStorage($"Test{i}");
@@ -165,7 +165,7 @@ public sealed class RootStorageTests
             using (var rootStorage = RootStorage.OpenRead(fileName))
             {
                 IEnumerable<EntryInfo> entries = rootStorage.EnumerateEntries();
-                Assert.AreEqual(subStorageCount, entries.Count());
+                Assert.HasCount(subStorageCount, entries);
 
                 for (int i = 0; i < subStorageCount; i++)
                     rootStorage.OpenStorage($"Test{i}");
@@ -211,7 +211,7 @@ public sealed class RootStorageTests
                 rootStorage.SwitchTo(memoryStream);
 
                 IEnumerable<EntryInfo> entries = rootStorage.EnumerateEntries();
-                Assert.AreEqual(streamCount, entries.Count());
+                Assert.HasCount(streamCount, entries);
 
                 for (int i = 0; i < streamCount; i++)
                     rootStorage.Delete($"Test{i}");
@@ -249,7 +249,7 @@ public sealed class RootStorageTests
         using (var rootStorage = RootStorage.Open(switchedMemoryStream))
         {
             IEnumerable<EntryInfo> entries = rootStorage.EnumerateEntries();
-            Assert.AreEqual(subStorageCount, entries.Count());
+            Assert.HasCount(subStorageCount, entries);
 
             for (int i = 0; i < subStorageCount; i++)
                 rootStorage.OpenStorage($"Test{i}");
