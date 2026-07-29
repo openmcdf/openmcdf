@@ -118,7 +118,14 @@ internal sealed class DirectoryEntry : IEquatable<DirectoryEntry?>
             int clampedNameLength = Math.Max(0, Math.Min(NameFieldLength, NameLength - 2));
             return Encoding.Unicode.GetString(Name, 0, clampedNameLength);
         }
-        set => NameLength = (ushort)(Encoding.Unicode.GetBytes(value, 0, value.Length, Name, 0) + 2);
+
+        set
+        {
+            int length = Encoding.Unicode.GetBytes(value, 0, value.Length, Name, 0);
+            Span<byte> remainder = Name.AsSpan().Slice(length);
+            remainder.Clear();
+            NameLength = (ushort)(length + 2);
+        }
     }
 
     public uint GetSiblingId(SiblingType siblingType) => siblingType is SiblingType.Left ? LeftSiblingId : RightSiblingId;
