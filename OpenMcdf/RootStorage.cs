@@ -238,6 +238,16 @@ public sealed class RootStorage : Storage, IDisposable
     public Stream BaseStream => Context.BaseStream;
 
     /// <summary>
+    /// Gets a value indicating whether the root storage supports writing.
+    /// </summary>
+    public bool CanWrite => !Context.IsDisposed && Context.CanWrite;
+
+    /// <summary>
+    /// Gets a value indicating whether the root storage supports committing changes.
+    /// </summary>
+    public bool CanCommit => !Context.IsDisposed && Context.CanCommit;
+
+    /// <summary>
     /// Flushes changes to the underlying stream. Optionally consolidates the file.
     /// </summary>
     /// <param name="consolidate">If true, consolidates the file after flushing.</param>

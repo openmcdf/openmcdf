@@ -63,7 +63,11 @@ internal sealed class RootContext : ContextBase, IDisposable
         }
     }
 
+    [MemberNotNullWhen(true, nameof(writer))]
     public bool CanWrite => writer is not null;
+
+    [MemberNotNullWhen(true, nameof(transactedStream))]
+    public bool CanCommit => transactedStream is not null;
 
     public bool IsDisposed { get; private set; }
 
@@ -159,14 +163,14 @@ internal sealed class RootContext : ContextBase, IDisposable
     [MemberNotNull(nameof(writer))]
     public void ThrowIfNotWritable()
     {
-        if (writer is null)
+        if (!CanWrite)
             throw new NotSupportedException("Root storage is not writable.");
     }
 
     [MemberNotNull(nameof(transactedStream))]
     public void ThrowIfNotTransacted()
     {
-        if (transactedStream is null)
+        if (!CanCommit)
             throw new NotSupportedException("Cannot commit non-transacted storage.");
     }
 

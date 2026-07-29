@@ -11,8 +11,10 @@ public sealed class RootStorageTests
     public void Open(string fileName)
     {
         using var rootStorage = RootStorage.OpenRead(fileName);
-        using var rootStorage2 = RootStorage.OpenRead(fileName);
+        Assert.IsFalse(rootStorage.CanWrite);
+        Assert.IsFalse(rootStorage.CanCommit);
 
+        using var rootStorage2 = RootStorage.OpenRead(fileName);
         Assert.ThrowsExactly<IOException>(() => RootStorage.Open(fileName, FileMode.Open));
         Assert.ThrowsExactly<IOException>(() => RootStorage.Open(fileName, FileMode.Open, FileAccess.ReadWrite));
 
@@ -79,8 +81,9 @@ public sealed class RootStorageTests
                     stream.Write(buffer, 0, buffer.Length);
 
                 Assert.HasCount(1, rootStorage.EnumerateEntries());
+                Assert.AreEqual(flags.HasFlag(StorageModeFlags.Transacted), rootStorage.CanCommit);
 
-                if (flags.HasFlag(StorageModeFlags.Transacted))
+                if (rootStorage.CanCommit)
                     rootStorage.Commit();
                 rootStorage.Flush(true);
 
