@@ -25,7 +25,7 @@ internal sealed class DictionaryProperty(int codePage, Dictionary<uint, string> 
         Dictionary<uint, string> entries = new((int)Math.Min(numEntries, 64));
 
         // Encoding.GetEncoding can actually be quite slow, so as all strings are in the same codepage, get the encoding once and then use it for each property.
-        Encoding encoding = Encoding.GetEncoding(codePage);
+        var encoding = Encoding.GetEncoding(codePage);
 
         for (uint i = 0; i < numEntries; i++)
         {
@@ -87,7 +87,7 @@ internal sealed class DictionaryProperty(int codePage, Dictionary<uint, string> 
         bw.Write(entries!.Count);
 
         // Encoding.GetEncoding can actually be quite slow, so as all strings are in the same codepage, get the encoding once and then use it for each property.
-        Encoding encoding = Encoding.GetEncoding(codePage);
+        var encoding = Encoding.GetEncoding(codePage);
 
         foreach (KeyValuePair<uint, string> kv in entries)
         {

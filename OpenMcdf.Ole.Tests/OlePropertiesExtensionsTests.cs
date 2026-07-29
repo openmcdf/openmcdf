@@ -492,7 +492,7 @@ public class OlePropertiesExtensionsTests
             [4] = "Project Name",
         };
 
-        Guid expectedFmtid0 = Guid.Parse("f0d6d0b1-a0d8-11ce-8aa2-08003601e988");
+        var expectedFmtid0 = Guid.Parse("f0d6d0b1-a0d8-11ce-8aa2-08003601e988");
 
         using (var cf = RootStorage.Open(modifiedStream, StorageModeFlags.LeaveOpen))
         {

@@ -362,7 +362,7 @@ public sealed class StorageTests
     {
         using MemoryStream memoryStream = new();
 
-        Guid guid = Guid.NewGuid();
+        var guid = Guid.NewGuid();
         DateTime now = DateTime.UtcNow;
 
         using (var rootStorage = RootStorage.Create(memoryStream, version, StorageModeFlags.LeaveOpen))

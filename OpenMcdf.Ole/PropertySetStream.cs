@@ -68,7 +68,7 @@ internal sealed class PropertySetStream
         // Read property offsets (P0)
         for (int i = 0; i < propertyCount; i++)
         {
-            PropertyIdentifierAndOffset pio = PropertyIdentifierAndOffset.Read(br);
+            var pio = PropertyIdentifierAndOffset.Read(br);
             PropertySet0.PropertyIdentifierAndOffsets.Add(pio);
         }
 
@@ -98,7 +98,7 @@ internal sealed class PropertySetStream
             // Read property offsets
             for (int i = 0; i < propertyCount; i++)
             {
-                PropertyIdentifierAndOffset pio = PropertyIdentifierAndOffset.Read(br);
+                var pio = PropertyIdentifierAndOffset.Read(br);
                 PropertySet1.PropertyIdentifierAndOffsets.Add(pio);
             }
 

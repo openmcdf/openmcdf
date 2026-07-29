@@ -221,7 +221,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(IsNodeSelected))]
     private async Task RemoveEntry()
     {
-        var node = selectedNode;
+        EntryInfoNode? node = selectedNode;
 
         if (rootStorage is null || node?.Parent is null)
             return;
@@ -304,7 +304,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             string exportPath = file.Path.LocalPath;
 
             using CfbStream stream = selectedNode.Parent!.Storage!.OpenStream(selectedNode.EntryInfo.Name);
-            using var fileStream = File.Open(exportPath, FileMode.Create);
+            using FileStream fileStream = File.Open(exportPath, FileMode.Create);
             await stream.CopyToAsync(fileStream);
         }
         catch (Exception ex) when (ex is FileFormatException or IOException or UnauthorizedAccessException)

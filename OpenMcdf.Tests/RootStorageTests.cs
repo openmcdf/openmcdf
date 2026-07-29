@@ -190,7 +190,7 @@ public sealed class RootStorageTests
     {
         string fileName = Path.GetTempFileName();
 
-        var data = TestData.CreateByteArray(1024);
+        byte[] data = TestData.CreateByteArray(1024);
 
         try
         {
@@ -334,7 +334,7 @@ public sealed class RootStorageTests
     public void DirectoryTreeCycleThrowsFileFormatExceptionOnEnumerate()
     {
         using var root = RootStorage.OpenRead("DirectoryTreeCycle.cfb");
-        var enumerator = root.EnumerateEntries().GetEnumerator();
+        IEnumerator<EntryInfo> enumerator = root.EnumerateEntries().GetEnumerator();
         Assert.ThrowsExactly<FileFormatException>(() =>
         {
             while (enumerator.MoveNext())
