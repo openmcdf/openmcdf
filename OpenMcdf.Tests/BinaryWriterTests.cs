@@ -55,9 +55,8 @@ public sealed class BinaryWriterTests
             ModifiedTime = FileTime.UtcZero,
             StartSectorId = 6,
             StreamLength = 7,
+            NameString = "Root Entry",
         };
-
-        expected.NameString = "Root Entry";
 
         using MemoryStream stream = new();
         using CfbBinaryWriter writer = new(stream);

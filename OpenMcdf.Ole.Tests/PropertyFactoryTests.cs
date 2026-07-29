@@ -63,7 +63,7 @@ public class PropertyFactoryTests
         Assert.AreEqual(vType, actualType);
         if (value is byte[] expectedBytes)
         {
-            CollectionAssert.AreEqual(expectedBytes, (byte[])property2.Value!);
+            Assert.AreSequenceEqual(expectedBytes, (byte[])property2.Value!);
         }
         else
         {

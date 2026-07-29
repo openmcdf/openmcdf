@@ -502,7 +502,7 @@ public class OlePropertiesExtensionsTests
             Assert.AreEqual(ContainerType.AppSpecific, co.ContainerType);
             Assert.AreEqual(expectedFmtid0, co.FMTID0);
             Assert.AreEqual(1040u, co.Context.Locale);
-            CollectionAssert.AreEqual(expectedPropertyNames, co.PropertyNames);
+            Assert.AreSequenceEqual(expectedPropertyNames, co.PropertyNames);
 
             // Write test file
             co.Save(testStream);
@@ -516,7 +516,7 @@ public class OlePropertiesExtensionsTests
 
             Assert.AreEqual(ContainerType.AppSpecific, co.ContainerType);
             Assert.AreEqual(expectedFmtid0, co.FMTID0);
-            CollectionAssert.AreEqual(expectedPropertyNames, co.PropertyNames);
+            Assert.AreSequenceEqual(expectedPropertyNames, co.PropertyNames);
         }
     }
 
