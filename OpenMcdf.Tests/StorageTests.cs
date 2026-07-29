@@ -10,7 +10,7 @@ public sealed class StorageTests
     [DataRow("MultipleStorage4.cfs", 1)]
     public void EnumerateEntries(string fileName, long storageCount)
     {
-        using var rootStorage = RootStorage.OpenRead(fileName);
+        using var rootStorage = RootStorage.OpenRead(fileName, StorageModeFlags.StrictValidation);
         IEnumerable<EntryInfo> storageEntries = rootStorage.EnumerateEntries();
         Assert.AreEqual(storageCount, storageEntries.Count());
     }
@@ -19,7 +19,7 @@ public sealed class StorageTests
     [DataRow("MultipleStorage.cfs")]
     public void OpenStorage(string fileName)
     {
-        using var rootStorage = RootStorage.OpenRead(fileName);
+        using var rootStorage = RootStorage.OpenRead(fileName, StorageModeFlags.StrictValidation);
         Assert.IsTrue(rootStorage.TryOpenStorage("MyStorage", out Storage? _));
         Assert.IsFalse(rootStorage.TryOpenStorage(string.Empty, out Storage? _));
 
@@ -41,7 +41,7 @@ public sealed class StorageTests
     [Ignore("Test file has multiple validation errors")]
     public void FatChainLoop(string fileName)
     {
-        using var rootStorage = RootStorage.OpenRead(fileName);
+        using var rootStorage = RootStorage.OpenRead(fileName, StorageModeFlags.StrictValidation);
         Assert.ThrowsExactly<FileFormatException>(() => rootStorage.OpenStorage("Anything"));
     }
 
@@ -65,7 +65,7 @@ public sealed class StorageTests
                 rootStorage.CreateStorage($"Test{i}");
         }
 
-        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.LeaveOpen))
+        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.LeaveOpen | StorageModeFlags.StrictValidation))
         {
             IEnumerable<EntryInfo> entries = rootStorage.EnumerateEntries();
             Assert.HasCount(subStorageCount, entries);
@@ -81,7 +81,7 @@ public sealed class StorageTests
                 rootStorage.CreateStorage($"Test{subStorageCount - i}");
         }
 
-        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.LeaveOpen))
+        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.LeaveOpen | StorageModeFlags.StrictValidation))
         {
             IEnumerable<EntryInfo> entries = rootStorage.EnumerateEntries();
             Assert.HasCount(subStorageCount, entries);
@@ -132,7 +132,7 @@ public sealed class StorageTests
                     rootStorage.CreateStorage($"Test{i}");
             }
 
-            using (var rootStorage = RootStorage.OpenRead(fileName))
+            using (var rootStorage = RootStorage.OpenRead(fileName, StorageModeFlags.StrictValidation))
             {
                 IEnumerable<EntryInfo> entries = rootStorage.EnumerateEntries();
                 Assert.HasCount(subStorageCount, entries);
@@ -291,7 +291,7 @@ public sealed class StorageTests
             Assert.HasCount(1, storage.EnumerateEntries());
         }
 
-        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.LeaveOpen))
+        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.LeaveOpen | StorageModeFlags.StrictValidation))
         {
             rootStorage.Delete("Storage");
             Assert.IsEmpty(rootStorage.EnumerateEntries());

@@ -189,9 +189,6 @@ internal sealed class DirectoryTree
     {
         if (directories.TryGetDictionaryEntry(root.ChildId, true, out DirectoryEntry? child))
         {
-            if (child.Color is not NodeColor.Black)
-                throw new FileFormatException("Root child is not black.");
-
             DirectoryTreeTraversalOrderValidator validator = new();
             Validate(child, validator);
         }

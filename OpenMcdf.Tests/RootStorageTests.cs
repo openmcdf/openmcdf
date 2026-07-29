@@ -1,4 +1,5 @@
 ﻿using Microsoft.IO;
+using System.Diagnostics.CodeAnalysis;
 
 namespace OpenMcdf.Tests;
 
@@ -30,6 +31,22 @@ public sealed class RootStorageTests
         Assert.ThrowsExactly<NotSupportedException>(() => rootStorage.ModifiedTime = DateTime.MinValue);
         Assert.ThrowsExactly<NotSupportedException>(() => rootStorage.CLSID = Guid.Empty);
         Assert.ThrowsExactly<NotSupportedException>(() => rootStorage.StateBits = 0);
+    }
+
+    [TestMethod]
+    [DataRow("Corrupt.xls")]
+    [SuppressMessage("Usage", "MSTEST0051:Assert.Throws should contain only a single statement/expression", Justification = "Multiple statements are required to open and validate the root storage.")]
+    public void OpenWithStrictValidation(string fileName)
+    {
+        using var rootStorage = RootStorage.OpenRead(fileName);
+        bool valid = rootStorage.Validate();
+        Assert.IsTrue(valid);
+
+        Assert.ThrowsExactly<FileFormatException>(() =>
+        {
+            using var rootStorage = RootStorage.OpenRead(fileName, StorageModeFlags.StrictValidation);
+            rootStorage.Validate();
+        });
     }
 
     [TestMethod]
@@ -99,7 +116,7 @@ public sealed class RootStorageTests
                 Assert.IsGreaterThan(consolidatedLength, originalLength);
             }
 
-            using (var rootStorage = RootStorage.OpenRead(fileName))
+            using (var rootStorage = RootStorage.OpenRead(fileName, StorageModeFlags.StrictValidation))
             {
                 Assert.IsEmpty(rootStorage.EnumerateEntries());
             }
@@ -132,7 +149,7 @@ public sealed class RootStorageTests
         }
 
         memoryStream.Position = 0;
-        using (var rootStorage = RootStorage.Open(switchedMemoryStream, StorageModeFlags.LeaveOpen))
+        using (var rootStorage = RootStorage.Open(switchedMemoryStream, StorageModeFlags.LeaveOpen | StorageModeFlags.StrictValidation))
         {
             IEnumerable<EntryInfo> entries = rootStorage.EnumerateEntries();
             Assert.HasCount(subStorageCount, entries);
@@ -165,7 +182,7 @@ public sealed class RootStorageTests
                 rootStorage.SwitchTo(fileName);
             }
 
-            using (var rootStorage = RootStorage.OpenRead(fileName))
+            using (var rootStorage = RootStorage.OpenRead(fileName, StorageModeFlags.StrictValidation))
             {
                 IEnumerable<EntryInfo> entries = rootStorage.EnumerateEntries();
                 Assert.HasCount(subStorageCount, entries);
@@ -209,7 +226,7 @@ public sealed class RootStorageTests
             }
 
             using MemoryStream memoryStream = new();
-            using (var rootStorage = RootStorage.OpenRead(fileName))
+            using (var rootStorage = RootStorage.OpenRead(fileName, StorageModeFlags.StrictValidation))
             {
                 rootStorage.SwitchTo(memoryStream);
 
@@ -249,7 +266,7 @@ public sealed class RootStorageTests
             rootStorage.Commit();
         }
 
-        using (var rootStorage = RootStorage.Open(switchedMemoryStream))
+        using (var rootStorage = RootStorage.Open(switchedMemoryStream, StorageModeFlags.StrictValidation))
         {
             IEnumerable<EntryInfo> entries = rootStorage.EnumerateEntries();
             Assert.HasCount(subStorageCount, entries);
@@ -329,14 +346,14 @@ public sealed class RootStorageTests
     [TestMethod]
     public void DirectoryTreeCycleThrowsFileFormatExceptionOnOpen()
     {
-        using var root = RootStorage.OpenRead("DirectoryTreeCycle.cfb");
+        using var root = RootStorage.OpenRead("DirectoryTreeCycle.cfb", StorageModeFlags.StrictValidation);
         Assert.ThrowsExactly<FileFormatException>(() => root.TryOpenStorage("AB", out _));
     }
 
     [TestMethod]
     public void DirectoryTreeCycleThrowsFileFormatExceptionOnEnumerate()
     {
-        using var root = RootStorage.OpenRead("DirectoryTreeCycle.cfb");
+        using var root = RootStorage.OpenRead("DirectoryTreeCycle.cfb", StorageModeFlags.StrictValidation);
         IEnumerator<EntryInfo> enumerator = root.EnumerateEntries().GetEnumerator();
         Assert.ThrowsExactly<FileFormatException>(() =>
         {
@@ -351,7 +368,7 @@ public sealed class RootStorageTests
     public void DirectoryTreeCycleThrowsFileFormatExceptionOnCreate()
     {
         using MemoryStream stream = TestData.CreateMemoryStreamFromFile("DirectoryTreeCycle.cfb");
-        using var root = RootStorage.Open(stream);
+        using var root = RootStorage.Open(stream, StorageModeFlags.StrictValidation);
         Assert.ThrowsExactly<FileFormatException>(() => root.CreateStorage("AB"));
     }
 
@@ -359,7 +376,7 @@ public sealed class RootStorageTests
     public void DirectoryTreeCycleThrowsFileFormatExceptionOnDelete()
     {
         using MemoryStream stream = TestData.CreateMemoryStreamFromFile("DirectoryTreeCycle.cfb");
-        using var root = RootStorage.Open(stream);
+        using var root = RootStorage.Open(stream, StorageModeFlags.StrictValidation);
         Assert.ThrowsExactly<FileFormatException>(() => root.Delete("AB"));
     }
 }
