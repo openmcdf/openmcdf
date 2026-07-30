@@ -1,5 +1,14 @@
 # OpenMcdf Changelog
 
+## 3.2.0
+
+* Allow optional strict validation
+* Clear directory entry name on deletion
+* Add CanWrite/CanCommit to RootStorage
+* Make FileTime API public
+* Improve argument validation
+* Update Avalonia to 12.1.0
+
 ## 3.1.4
 
 * Enforce binary search tree validation
