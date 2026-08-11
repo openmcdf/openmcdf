@@ -76,12 +76,12 @@ internal sealed class DirectoryEntry : IEquatable<DirectoryEntry?>
     /// <summary>
     /// Gets or sets the creation time of the storage object.
     /// </summary>
-    public DateTime CreationTime { get; set; }
+    public ulong CreationTime { get; set; }
 
     /// <summary>
     /// Gets or sets the modified time of the storage object.
     /// </summary>
-    public DateTime ModifiedTime { get; set; }
+    public ulong ModifiedTime { get; set; }
 
     /// <summary>
     /// Gets or sets the starting sector location for a stream or the first sector of the mini-stream for the root storage object.
@@ -178,19 +178,19 @@ internal sealed class DirectoryEntry : IEquatable<DirectoryEntry?>
 
         if (storageType is StorageType.Root)
         {
-            CreationTime = FileTime.UtcZero;
-            ModifiedTime = DateTime.UtcNow;
+            CreationTime = 0;
+            ModifiedTime = FileTime.UtcNow;
         }
         else if (storageType is StorageType.Storage)
         {
-            DateTime now = DateTime.UtcNow;
+            ulong now = FileTime.UtcNow;
             CreationTime = now;
             ModifiedTime = now;
         }
         else
         {
-            CreationTime = FileTime.UtcZero;
-            ModifiedTime = FileTime.UtcZero;
+            CreationTime = 0;
+            ModifiedTime = 0;
         }
     }
 
@@ -202,7 +202,7 @@ internal sealed class DirectoryEntry : IEquatable<DirectoryEntry?>
         _ => throw new FileFormatException($"Invalid storage type: {Type}."),
     };
 
-    public EntryInfo ToEntryInfo(string path) => new(EntryType, path, NameString, StreamLength, CLSID, CreationTime, ModifiedTime);
+    public EntryInfo ToEntryInfo(string path) => new(EntryType, path, NameString, StreamLength, CLSID, FileTime.ClampToDateTimeUtc(CreationTime), FileTime.ClampToDateTimeUtc(ModifiedTime));
 
     [ExcludeFromCodeCoverage]
     public override string ToString() => $"{Id}: \"{NameString}\"";

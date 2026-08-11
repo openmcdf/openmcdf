@@ -16,16 +16,6 @@ public sealed class BinaryReaderTests
     }
 
     [TestMethod]
-    public void ReadFileTime()
-    {
-        byte[] bytes = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
-        using MemoryStream stream = new(bytes);
-        using CfbBinaryReader reader = new(stream);
-        DateTime actual = reader.ReadFileTime();
-        Assert.AreEqual(FileTime.UtcZero, actual);
-    }
-
-    [TestMethod]
     [DataRow("TestStream_v3_0.cfs")]
     [DataRow("TestStream_v4_0.cfs")]
     public void ReadHeader(string fileName)

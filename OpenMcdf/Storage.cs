@@ -54,14 +54,18 @@ public class Storage : ContextBase
     /// </summary>
     public DateTime CreationTime
     {
+        get => FileTime.ClampToDateTimeUtc(CreationFileTime);
+        set => CreationFileTime = (ulong)value.ToFileTimeUtc();
+    }
+
+    public ulong CreationFileTime
+    {
         get => directoryEntry.CreationTime;
         set
         {
             Context.ThrowIfNotWritable();
-
-            if (directoryEntry.Type is StorageType.Root && !value.IsFileTimeUtcZero())
+            if (directoryEntry.Type is StorageType.Root && value != 0)
                 throw new ArgumentException("Creation time must be zero for the root storage.", nameof(value));
-
             directoryEntry.CreationTime = value;
             Context.DirectoryEntries.Write(directoryEntry);
         }
@@ -72,11 +76,18 @@ public class Storage : ContextBase
     /// </summary>
     public DateTime ModifiedTime
     {
+        get => FileTime.ClampToDateTimeUtc(ModifiedFileTime);
+        set => ModifiedFileTime = (ulong)value.ToFileTimeUtc();
+    }
+
+    public ulong ModifiedFileTime
+    {
         get => directoryEntry.ModifiedTime;
         set
         {
             Context.ThrowIfNotWritable();
-
+            if (directoryEntry.Type is StorageType.Stream && value != 0)
+                throw new ArgumentException("Modified time must be zero for streams.", nameof(value));
             directoryEntry.ModifiedTime = value;
             Context.DirectoryEntries.Write(directoryEntry);
         }

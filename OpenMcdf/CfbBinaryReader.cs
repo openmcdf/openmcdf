@@ -33,12 +33,6 @@ internal sealed class CfbBinaryReader : BinaryReader
         return new Guid(guidBuffer);
     }
 
-    public DateTime ReadFileTime()
-    {
-        long fileTime = ReadInt64();
-        return DateTime.FromFileTimeUtc(fileTime);
-    }
-
     public Header ReadHeader()
     {
         Header header = new();
@@ -115,8 +109,8 @@ internal sealed class CfbBinaryReader : BinaryReader
             ChildId = ReadUInt32(),
             CLSID = ReadGuid(),
             StateBits = ReadUInt32(),
-            CreationTime = ReadFileTime(),
-            ModifiedTime = ReadFileTime(),
+            CreationTime = ReadUInt64(),
+            ModifiedTime = ReadUInt64(),
             StartSectorId = ReadUInt32(),
         };
 
@@ -149,10 +143,10 @@ internal sealed class CfbBinaryReader : BinaryReader
 
         if (strict)
         {
-            if (entry.Type is StorageType.Stream or StorageType.Root && entry.CreationTime != FileTime.UtcZero)
+            if (entry.Type is StorageType.Stream or StorageType.Root && entry.CreationTime != 0)
                 throw new FileFormatException("Creation time must be zero for streams and root.");
 
-            if (entry.Type is StorageType.Stream && entry.ModifiedTime != FileTime.UtcZero)
+            if (entry.Type is StorageType.Stream && entry.ModifiedTime != 0)
                 throw new FileFormatException("Modified time must be zero for streams.");
         }
 
