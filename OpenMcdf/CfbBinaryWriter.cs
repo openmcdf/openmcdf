@@ -36,12 +36,6 @@ internal sealed class CfbBinaryWriter : BinaryWriter
 #endif
     }
 
-    public void Write(DateTime value)
-    {
-        long fileTime = value.ToFileTimeUtc();
-        Write(fileTime);
-    }
-
     public void Write(Header header)
     {
         Write(Header.Signature);

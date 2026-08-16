@@ -16,13 +16,10 @@ public sealed class BinaryReaderTests
     }
 
     [TestMethod]
-    public void ReadFileTime()
+    public void ClampToDateTimeUtc_ClampsTooLargeFileTime()
     {
-        byte[] bytes = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
-        using MemoryStream stream = new(bytes);
-        using CfbBinaryReader reader = new(stream);
-        DateTime actual = reader.ReadFileTime();
-        Assert.AreEqual(FileTime.UtcZero, actual);
+        DateTime actual = FileTime.ClampToDateTimeUtc(ulong.MaxValue);
+        Assert.AreEqual(FileTime.DateTimeMaxValueUtc, actual);
     }
 
     [TestMethod]
