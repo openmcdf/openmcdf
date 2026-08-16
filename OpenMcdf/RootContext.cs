@@ -190,10 +190,7 @@ internal sealed class RootContext : ContextBase, IDisposable
         if (transactedStream is null)
             TrimBaseStream();
         if (!Header.Equals(lastFlushedHeader))
-        {
             WriteHeader();
-            lastFlushedHeader = Header.Clone();
-        }
         writer.BaseStream.Flush();
     }
 
@@ -228,6 +225,7 @@ internal sealed class RootContext : ContextBase, IDisposable
         CfbBinaryWriter writer = Writer;
         writer.Seek(0, SeekOrigin.Begin);
         writer.Write(Header);
+        lastFlushedHeader = Header.Clone();
     }
 
     public void Commit()
