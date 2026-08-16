@@ -302,6 +302,51 @@ public sealed class RootStorageTests
     }
 
     [TestMethod]
+    public void OpenPathOverloadsDisposeFileStreamOnOpenFailure()
+    {
+        static void AssertThrowsAndCanReopen(string path, Action openAction)
+        {
+            Assert.Throws<Exception>(openAction);
+            using FileStream stream = File.Open(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        }
+
+        string fileName = Path.GetTempFileName();
+
+        try
+        {
+            File.WriteAllBytes(fileName, [0x01, 0x02, 0x03, 0x04]);
+
+            AssertThrowsAndCanReopen(fileName, () => RootStorage.Open(fileName, FileMode.Open));
+            AssertThrowsAndCanReopen(fileName, () => RootStorage.Open(fileName, FileMode.Open, FileAccess.ReadWrite));
+            AssertThrowsAndCanReopen(fileName, () => RootStorage.OpenRead(fileName));
+        }
+        finally
+        {
+            TestFile.TryDelete(fileName);
+        }
+    }
+
+    [TestMethod]
+    public void SwitchToFileDisposesFileStreamOnFailure()
+    {
+        string fileName = Path.GetTempFileName();
+
+        try
+        {
+            using var rootStorage = RootStorage.CreateInMemory();
+            rootStorage.Dispose();
+
+            Assert.ThrowsExactly<ObjectDisposedException>(() => rootStorage.SwitchTo(fileName));
+
+            using FileStream stream = File.Open(fileName, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        }
+        finally
+        {
+            TestFile.TryDelete(fileName);
+        }
+    }
+
+    [TestMethod]
     public void DisposeWithoutChangesDoesNotUpdateLastWriteTime()
     {
         string fileName = Path.GetTempFileName();
