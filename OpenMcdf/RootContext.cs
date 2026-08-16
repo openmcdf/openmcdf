@@ -187,6 +187,7 @@ internal sealed class RootContext : ContextBase, IDisposable
         Fat.Flush();
         if (transactedStream is null)
             TrimBaseStream();
+        Header.TransactionSignatureNumber = unchecked(Header.TransactionSignatureNumber + 1);
         WriteHeader();
         writer.BaseStream.Flush();
     }
