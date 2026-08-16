@@ -138,6 +138,27 @@ internal sealed class Header : IEquatable<Header?>
         Difat.AsSpan().Fill(SectorType.Free);
     }
 
+    public Header Clone()
+    {
+        Header copy = new((Version)MajorVersion)
+        {
+            CLSID = CLSID,
+            MinorVersion = MinorVersion,
+            SectorShift = SectorShift,
+            MiniSectorShift = MiniSectorShift,
+            DirectorySectorCount = DirectorySectorCount,
+            FatSectorCount = FatSectorCount,
+            FirstDirectorySectorId = FirstDirectorySectorId,
+            TransactionSignatureNumber = TransactionSignatureNumber,
+            FirstMiniFatSectorId = FirstMiniFatSectorId,
+            MiniFatSectorCount = MiniFatSectorCount,
+            FirstDifatSectorId = FirstDifatSectorId,
+            DifatSectorCount = DifatSectorCount,
+        };
+        Difat.CopyTo(copy.Difat, 0);
+        return copy;
+    }
+
     public override int GetHashCode()
     {
         HashCode code = default;

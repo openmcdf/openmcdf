@@ -310,8 +310,6 @@ public sealed class RootStorageTests
             using (RootStorage rootStorage = RootStorage.Create(fileName))
             {
                 using CfbStream stream = rootStorage.CreateStream("Test");
-                byte[] data = TestData.CreateByteArray(16);
-                stream.Write(data, 0, data.Length);
             }
 
             DateTime expectedLastWriteTimeUtc = new(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);

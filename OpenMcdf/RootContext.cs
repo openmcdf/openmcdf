@@ -138,12 +138,12 @@ internal sealed class RootContext : ContextBase, IDisposable
         if (create)
         {
             WriteHeader();
-            lastFlushedHeader = CloneHeader(Header);
+            lastFlushedHeader = Header.Clone();
             DirectoryEntries.Write(DirectoryEntries.RootEntry);
         }
         else
         {
-            lastFlushedHeader = CloneHeader(Header);
+            lastFlushedHeader = Header.Clone();
         }
     }
 
@@ -196,7 +196,7 @@ internal sealed class RootContext : ContextBase, IDisposable
         if (!Header.Equals(lastFlushedHeader))
         {
             WriteHeader();
-            lastFlushedHeader = CloneHeader(Header);
+            lastFlushedHeader = Header.Clone();
         }
         writer.BaseStream.Flush();
     }
@@ -232,27 +232,6 @@ internal sealed class RootContext : ContextBase, IDisposable
         CfbBinaryWriter writer = Writer;
         writer.Seek(0, SeekOrigin.Begin);
         writer.Write(Header);
-    }
-
-    private static Header CloneHeader(Header source)
-    {
-        Header copy = new((Version)source.MajorVersion)
-        {
-            CLSID = source.CLSID,
-            MinorVersion = source.MinorVersion,
-            SectorShift = source.SectorShift,
-            MiniSectorShift = source.MiniSectorShift,
-            DirectorySectorCount = source.DirectorySectorCount,
-            FatSectorCount = source.FatSectorCount,
-            FirstDirectorySectorId = source.FirstDirectorySectorId,
-            TransactionSignatureNumber = source.TransactionSignatureNumber,
-            FirstMiniFatSectorId = source.FirstMiniFatSectorId,
-            MiniFatSectorCount = source.MiniFatSectorCount,
-            FirstDifatSectorId = source.FirstDifatSectorId,
-            DifatSectorCount = source.DifatSectorCount,
-        };
-        source.Difat.CopyTo(copy.Difat, 0);
-        return copy;
     }
 
     public void Commit()
