@@ -300,7 +300,10 @@ internal sealed class MiniFatStream : Stream
             position += writeLength;
             writeCount += (int)writeLength;
             if (position > Length)
+            {
                 DirectoryEntry.StreamLength = position;
+                isDirectoryEntryDirty = true;
+            }
             sectorOffset = 0;
             if (writeCount >= buffer.Length)
                 return;
