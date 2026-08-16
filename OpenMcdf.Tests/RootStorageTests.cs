@@ -302,6 +302,37 @@ public sealed class RootStorageTests
     }
 
     [TestMethod]
+    public void DisposeWithoutChangesDoesNotUpdateLastWriteTime()
+    {
+        string fileName = Path.GetTempFileName();
+        try
+        {
+            using (RootStorage rootStorage = RootStorage.Create(fileName))
+            {
+                using CfbStream stream = rootStorage.CreateStream("Test");
+                byte[] data = TestData.CreateByteArray(16);
+                stream.Write(data, 0, data.Length);
+            }
+
+            DateTime expectedLastWriteTimeUtc = new(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            File.SetLastWriteTimeUtc(fileName, expectedLastWriteTimeUtc);
+
+            using (RootStorage rootStorage = RootStorage.Open(fileName, FileMode.Open, FileAccess.ReadWrite))
+            {
+                using CfbStream stream = rootStorage.OpenStream("Test");
+                _ = stream.ReadByte();
+            }
+
+            DateTime actualLastWriteTimeUtc = File.GetLastWriteTimeUtc(fileName);
+            Assert.AreEqual(expectedLastWriteTimeUtc, actualLastWriteTimeUtc);
+        }
+        finally
+        {
+            TestFile.TryDelete(fileName);
+        }
+    }
+
+    [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
     public void DeleteTrimsBaseStream(bool consolidate)

@@ -25,6 +25,7 @@ internal sealed class RootContext : ContextBase, IDisposable
     readonly IOContextFlags contextFlags;
     readonly CfbBinaryWriter? writer;
     readonly TransactedStream? transactedStream;
+    Header? lastFlushedHeader;
     MiniFat? miniFat;
     FatStream? miniStream;
 
@@ -137,7 +138,12 @@ internal sealed class RootContext : ContextBase, IDisposable
         if (create)
         {
             WriteHeader();
+            lastFlushedHeader = CloneHeader(Header);
             DirectoryEntries.Write(DirectoryEntries.RootEntry);
+        }
+        else
+        {
+            lastFlushedHeader = CloneHeader(Header);
         }
     }
 
@@ -187,7 +193,11 @@ internal sealed class RootContext : ContextBase, IDisposable
         Fat.Flush();
         if (transactedStream is null)
             TrimBaseStream();
-        WriteHeader();
+        if (!Header.Equals(lastFlushedHeader))
+        {
+            WriteHeader();
+            lastFlushedHeader = CloneHeader(Header);
+        }
         writer.BaseStream.Flush();
     }
 
@@ -213,7 +223,8 @@ internal sealed class RootContext : ContextBase, IDisposable
             Fat.TrySetValue(RangeLockSectorId, SectorType.Free);
 
         Length = lastUsedSector.EndPosition;
-        BaseStream.SetLength(Length);
+        if (BaseStream.Length != Length)
+            BaseStream.SetLength(Length);
     }
 
     public void WriteHeader()
@@ -221,6 +232,27 @@ internal sealed class RootContext : ContextBase, IDisposable
         CfbBinaryWriter writer = Writer;
         writer.Seek(0, SeekOrigin.Begin);
         writer.Write(Header);
+    }
+
+    private static Header CloneHeader(Header source)
+    {
+        Header copy = new((Version)source.MajorVersion)
+        {
+            CLSID = source.CLSID,
+            MinorVersion = source.MinorVersion,
+            SectorShift = source.SectorShift,
+            MiniSectorShift = source.MiniSectorShift,
+            DirectorySectorCount = source.DirectorySectorCount,
+            FatSectorCount = source.FatSectorCount,
+            FirstDirectorySectorId = source.FirstDirectorySectorId,
+            TransactionSignatureNumber = source.TransactionSignatureNumber,
+            FirstMiniFatSectorId = source.FirstMiniFatSectorId,
+            MiniFatSectorCount = source.MiniFatSectorCount,
+            FirstDifatSectorId = source.FirstDifatSectorId,
+            DifatSectorCount = source.DifatSectorCount,
+        };
+        source.Difat.CopyTo(copy.Difat, 0);
+        return copy;
     }
 
     public void Commit()
