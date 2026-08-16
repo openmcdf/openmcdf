@@ -140,7 +140,10 @@ internal sealed class RootContext : ContextBase, IDisposable
             WriteHeader();
             DirectoryEntries.Write(DirectoryEntries.RootEntry);
         }
-        lastFlushedHeader = Header.Clone();
+        else
+        {
+            lastFlushedHeader = Header.Clone();
+        }
     }
 
     public void Dispose()
