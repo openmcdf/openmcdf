@@ -124,7 +124,15 @@ public sealed class RootStorage : Storage, IDisposable
         ThrowIfLeaveOpen(flags);
 
         FileStream stream = File.Create(fileName);
-        return Create(stream, version, flags);
+        try
+        {
+            return Create(stream, version, flags);
+        }
+        catch
+        {
+            stream.Dispose();
+            throw;
+        }
     }
 
     /// <summary>
@@ -182,7 +190,15 @@ public sealed class RootStorage : Storage, IDisposable
         ThrowIfLeaveOpen(flags);
 
         FileStream stream = File.Open(fileName, mode);
-        return Open(stream, flags);
+        try
+        {
+            return Open(stream, flags);
+        }
+        catch
+        {
+            stream.Dispose();
+            throw;
+        }
     }
 
     /// <summary>
@@ -204,7 +220,15 @@ public sealed class RootStorage : Storage, IDisposable
         ThrowIfLeaveOpen(flags);
 
         FileStream stream = File.Open(fileName, mode, access);
-        return Open(stream, flags);
+        try
+        {
+            return Open(stream, flags);
+        }
+        catch
+        {
+            stream.Dispose();
+            throw;
+        }
     }
 
     /// <summary>
@@ -244,7 +268,15 @@ public sealed class RootStorage : Storage, IDisposable
         ThrowIfTransacted(flags);
 
         FileStream stream = File.OpenRead(fileName);
-        return Open(stream, flags);
+        try
+        {
+            return Open(stream, flags);
+        }
+        catch
+        {
+            stream.Dispose();
+            throw;
+        }
     }
 
     RootStorage(RootContextSite rootContextSite, StorageModeFlags storageModeFlags)
@@ -379,7 +411,15 @@ public sealed class RootStorage : Storage, IDisposable
             throw new ArgumentNullException(nameof(fileName));
 
         FileStream stream = File.Create(fileName);
-        SwitchToCore(stream, false);
+        try
+        {
+            SwitchToCore(stream, false);
+        }
+        catch
+        {
+            stream.Dispose();
+            throw;
+        }
     }
 
     // TODO: Move checks to Tests project as Asserts
