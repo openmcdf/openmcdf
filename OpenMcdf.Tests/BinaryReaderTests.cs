@@ -16,6 +16,13 @@ public sealed class BinaryReaderTests
     }
 
     [TestMethod]
+    public void ClampToDateTimeUtc_ClampsTooLargeFileTime()
+    {
+        DateTime actual = FileTime.ClampToDateTimeUtc(ulong.MaxValue);
+        Assert.AreEqual(FileTime.DateTimeMaxValueUtc, actual);
+    }
+
+    [TestMethod]
     [DataRow("TestStream_v3_0.cfs")]
     [DataRow("TestStream_v4_0.cfs")]
     public void ReadHeader(string fileName)
