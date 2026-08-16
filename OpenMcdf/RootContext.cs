@@ -228,6 +228,7 @@ internal sealed class RootContext : ContextBase, IDisposable
         ThrowIfNotWritable();
         ThrowIfNotTransacted();
 
+        Header.TransactionSignatureNumber = unchecked(Header.TransactionSignatureNumber + 1);
         Flush();
 
         transactedStream.Commit();

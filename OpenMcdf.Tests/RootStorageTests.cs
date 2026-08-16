@@ -326,6 +326,50 @@ public sealed class RootStorageTests
     }
 
     [TestMethod]
+    [DataRow(Version.V3)]
+    [DataRow(Version.V4)]
+    public void TransactionSignatureNumberDoesNotIncrementOnFlush(Version version)
+    {
+        using MemoryStream memoryStream = new();
+        using var rootStorage = RootStorage.Create(memoryStream, version, StorageModeFlags.LeaveOpen);
+
+        Assert.AreEqual(0u, rootStorage.Context.Header.TransactionSignatureNumber);
+
+        rootStorage.Flush();
+        Assert.AreEqual(0u, rootStorage.Context.Header.TransactionSignatureNumber);
+
+        rootStorage.Flush();
+        Assert.AreEqual(0u, rootStorage.Context.Header.TransactionSignatureNumber);
+
+        memoryStream.Position = 0;
+        using CfbBinaryReader reader = new(memoryStream);
+        Header header = reader.ReadHeader();
+        Assert.AreEqual(0u, header.TransactionSignatureNumber);
+    }
+
+    [TestMethod]
+    [DataRow(Version.V3)]
+    [DataRow(Version.V4)]
+    public void TransactionSignatureNumberIncrementsOnCommit(Version version)
+    {
+        using MemoryStream memoryStream = new();
+        using (var rootStorage = RootStorage.Create(memoryStream, version, StorageModeFlags.Transacted | StorageModeFlags.LeaveOpen))
+        {
+            Assert.AreEqual(0u, rootStorage.Context.Header.TransactionSignatureNumber);
+
+            rootStorage.Commit();
+            Assert.AreEqual(1u, rootStorage.Context.Header.TransactionSignatureNumber);
+
+            rootStorage.Commit();
+            Assert.AreEqual(2u, rootStorage.Context.Header.TransactionSignatureNumber);
+        }
+
+        memoryStream.Position = 0;
+        using var rootStorage2 = RootStorage.Open(memoryStream, StorageModeFlags.LeaveOpen);
+        Assert.AreEqual(2u, rootStorage2.Context.Header.TransactionSignatureNumber);
+    }
+
+    [TestMethod]
     [DoNotParallelize] // High memory usage
     public void V3ThrowsIOExceptionAt2GB()
     {
