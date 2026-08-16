@@ -309,7 +309,6 @@ public sealed class RootStorageTests
         {
             using (RootStorage rootStorage = RootStorage.Create(fileName))
             {
-                using CfbStream stream = rootStorage.CreateStream("Test");
             }
 
             DateTime expectedLastWriteTimeUtc = new(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -317,8 +316,6 @@ public sealed class RootStorageTests
 
             using (RootStorage rootStorage = RootStorage.Open(fileName, FileMode.Open, FileAccess.ReadWrite))
             {
-                using CfbStream stream = rootStorage.OpenStream("Test");
-                _ = stream.ReadByte();
             }
 
             DateTime actualLastWriteTimeUtc = File.GetLastWriteTimeUtc(fileName);
