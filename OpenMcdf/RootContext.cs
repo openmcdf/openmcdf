@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using System.Runtime.ExceptionServices;
 
 namespace OpenMcdf;
 
@@ -150,21 +151,53 @@ internal sealed class RootContext : ContextBase, IDisposable
     {
         if (!IsDisposed)
         {
-            Flush();
+            Exception? flushException = null;
+            try
+            {
+                Flush();
+            }
+            catch (Exception ex)
+            {
+                flushException = ex;
+            }
+            finally
+            {
+                Exception? cleanupException = null;
+                void TryCleanup(Action action)
+                {
+                    try
+                    {
+                        action();
+                    }
+                    catch (Exception ex) when (cleanupException is null)
+                    {
+                        cleanupException = ex;
+                    }
+                    catch (Exception)
+                    {
+                    }
+                }
 
-            miniStream?.Dispose();
-            miniFat?.Dispose();
-            DirectoryEntries.Dispose();
-            Fat.Dispose();
-            writer?.Dispose();
-            Reader.Dispose();
-            string? overlayFileName = (transactedStream?.OverlayStream as FileStream)?.Name;
-            transactedStream?.Dispose();
-            if (overlayFileName is not null)
-                File.Delete(overlayFileName);
-            if (!contextFlags.HasFlag(IOContextFlags.LeaveOpen))
-                BaseStream.Dispose();
-            IsDisposed = true;
+                string? overlayFileName = (transactedStream?.OverlayStream as FileStream)?.Name;
+
+                TryCleanup(() => miniStream?.Dispose());
+                TryCleanup(() => miniFat?.Dispose());
+                TryCleanup(() => DirectoryEntries.Dispose());
+                TryCleanup(() => Fat.Dispose());
+                TryCleanup(() => writer?.Dispose());
+                TryCleanup(() => Reader.Dispose());
+                TryCleanup(() => transactedStream?.Dispose());
+                if (overlayFileName is not null)
+                    TryCleanup(() => File.Delete(overlayFileName));
+                if (!contextFlags.HasFlag(IOContextFlags.LeaveOpen))
+                    TryCleanup(() => BaseStream.Dispose());
+                IsDisposed = true;
+
+                if (flushException is not null)
+                    ExceptionDispatchInfo.Capture(flushException).Throw();
+                if (cleanupException is not null)
+                    ExceptionDispatchInfo.Capture(cleanupException).Throw();
+            }
         }
     }
 

@@ -1,5 +1,6 @@
 ﻿using Microsoft.IO;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 
 namespace OpenMcdf.Tests;
 
@@ -299,6 +300,35 @@ public sealed class RootStorageTests
         }
         using FileStream stream = new(fileName, FileMode.Open, FileAccess.Read);
         Assert.ThrowsExactly<ArgumentException>(() => RootStorage.Open(stream, StorageModeFlags.Transacted));
+    }
+
+    [TestMethod]
+    public void DisposeCleansTransactedOverlayFileWhenFlushThrows()
+    {
+        string fileName = Path.GetTempFileName();
+        string? overlayFileName = null;
+
+        try
+        {
+            var rootStorage = RootStorage.Create(fileName, Version.V3, StorageModeFlags.Transacted);
+            rootStorage.CreateStorage("Test");
+
+            FieldInfo transactedStreamField = typeof(RootContext).GetField("transactedStream", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            var transactedStream = (TransactedStream)transactedStreamField.GetValue(rootStorage.Context)!;
+            overlayFileName = ((FileStream)transactedStream.OverlayStream).Name;
+            Assert.IsTrue(File.Exists(overlayFileName));
+
+            transactedStream.OverlayStream.Dispose();
+            Assert.ThrowsExactly<ObjectDisposedException>(() => rootStorage.Dispose());
+
+            Assert.IsFalse(File.Exists(overlayFileName));
+        }
+        finally
+        {
+            if (overlayFileName is not null)
+                TestFile.TryDelete(overlayFileName);
+            TestFile.TryDelete(fileName);
+        }
     }
 
     [TestMethod]
