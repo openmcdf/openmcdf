@@ -43,6 +43,17 @@ public sealed class StreamTests
     }
 
     [TestMethod]
+    public void ReadMiniFatChainBeyondMiniStreamThrows()
+    {
+        using MemoryStream memoryStream = TestData.CreateMemoryStreamFromFile("TestStream_v3_65.cfs");
+        CorruptMiniFatChainToOutOfRangeSector(memoryStream);
+
+        using var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.LeaveOpen | StorageModeFlags.StrictValidation);
+        using CfbStream stream = rootStorage.OpenStream("TestStream");
+        Assert.ThrowsExactly<FileFormatException>(() => stream.CopyTo(Stream.Null));
+    }
+
+    [TestMethod]
     [DataRow("TestStream_v3_0.cfs")]
     public void WriteToReadOnlyStreamThrows(string fileName)
     {
@@ -618,5 +629,28 @@ public sealed class StreamTests
 
         stream.Position = length;
         Assert.Throws<IOException>(() => stream.WriteByte(0));
+    }
+
+    static void CorruptMiniFatChainToOutOfRangeSector(MemoryStream stream)
+    {
+        stream.Position = 0;
+        using CfbBinaryReader reader = new(stream, true);
+        Header header = reader.ReadHeader();
+
+        int sectorSize = 1 << header.SectorShift;
+        int miniSectorSize = 1 << header.MiniSectorShift;
+        long directorySectorPosition = (header.FirstDirectorySectorId + 1L) * sectorSize;
+
+        reader.Position = directorySectorPosition;
+        DirectoryEntry rootEntry = reader.ReadDirectoryEntry((Version)header.MajorVersion, 0);
+        DirectoryEntry testStreamEntry = reader.ReadDirectoryEntry((Version)header.MajorVersion, 1);
+        Assert.AreEqual("TestStream", testStreamEntry.NameString);
+
+        uint outOfRangeMiniSectorId = (uint)((rootEntry.StreamLength + miniSectorSize - 1) / miniSectorSize);
+        long miniFatEntryPosition = ((header.FirstMiniFatSectorId + 1L) * sectorSize) + (testStreamEntry.StartSectorId * sizeof(uint));
+        stream.Position = miniFatEntryPosition;
+        byte[] data = BitConverter.GetBytes(outOfRangeMiniSectorId);
+        stream.Write(data, 0, data.Length);
+        stream.Position = 0;
     }
 }

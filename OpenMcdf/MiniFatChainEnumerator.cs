@@ -75,6 +75,8 @@ internal sealed class MiniFatChainEnumerator : ContextBase, IEnumerator<uint>
             if (value > SectorType.Maximum)
                 throw new FileFormatException($"Invalid mini FAT sector ID: {value}.");
 
+            ValidateMiniSectorId(value);
+
             uint nextIndex = index + 1;
             if (nextIndex > SectorType.Maximum)
                 throw new FileFormatException("Mini FAT chain length is greater than the maximum.");
@@ -101,6 +103,11 @@ internal sealed class MiniFatChainEnumerator : ContextBase, IEnumerator<uint>
             current = uint.MaxValue;
             return false;
         }
+
+        if (current > SectorType.Maximum)
+            throw new FileFormatException($"Invalid mini FAT sector ID: {current}.");
+
+        ValidateMiniSectorId(current);
 
         return true;
     }
@@ -235,4 +242,11 @@ internal sealed class MiniFatChainEnumerator : ContextBase, IEnumerator<uint>
 
     [ExcludeFromCodeCoverage]
     public override string ToString() => $"Index: {index} Current: {current}";
+
+    void ValidateMiniSectorId(uint sectorId)
+    {
+        MiniSector miniSector = new(sectorId, Context.MiniSectorSize);
+        if (miniSector.EndPosition > Context.DirectoryEntries.RootEntry.StreamLength)
+            throw new FileFormatException($"Mini FAT sector ID {sectorId} is beyond the end of the mini stream.");
+    }
 }
