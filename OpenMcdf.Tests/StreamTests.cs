@@ -613,8 +613,10 @@ public sealed class StreamTests
     {
         using var rootStorage = RootStorage.CreateInMemory(version);
         using CfbStream stream = rootStorage.CreateStream("Test");
-        Assert.Throws<ArgumentOutOfRangeException>(() => stream.SetLength(length + 1));
-        Assert.Throws<ArgumentOutOfRangeException>(() => stream.Position = length + 1);
+        ArgumentOutOfRangeException setLengthException = Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => stream.SetLength(length + 1));
+        ArgumentOutOfRangeException setPositionException = Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => stream.Position = length + 1);
+        Assert.AreEqual("value", setLengthException.ParamName);
+        Assert.AreEqual("value", setPositionException.ParamName);
 
         stream.Position = length;
         Assert.Throws<IOException>(() => stream.WriteByte(0));

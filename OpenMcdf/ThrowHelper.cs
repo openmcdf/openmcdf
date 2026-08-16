@@ -51,7 +51,7 @@ internal static class ThrowHelper
     public static void ThrowIfSeekBeyondMaximumLength(long value, long maxLength)
     {
         if (value > maxLength)
-            throw new ArgumentOutOfRangeException("An attempt was made to move the position beyond the maximum length of the stream.");
+            throw new ArgumentOutOfRangeException(nameof(value), "An attempt was made to move the position beyond the maximum length of the stream.");
     }
 
     public static void ThrowIfNameIsInvalid(string value)
