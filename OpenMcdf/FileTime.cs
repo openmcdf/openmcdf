@@ -10,11 +10,11 @@ public static class FileTime
     /// </summary>
     public static readonly DateTime UtcZero = DateTime.FromFileTimeUtc(0);
 
-    public static readonly DateTime DateTimeMaxValueUtc = DateTime.MaxValue.ToUniversalTime();
+public static readonly DateTime DateTimeMaxValueUtc = new(DateTime.MaxValue.Ticks, DateTimeKind.Utc);
 
-    public static readonly ulong DateTimeMaxValue = (ulong)DateTimeMaxValueUtc.ToFileTimeUtc();
+public static readonly ulong DateTimeMaxValue = (ulong)DateTimeMaxValueUtc.ToFileTimeUtc();
 
-    public static ulong UtcNow => (ulong)DateTime.UtcNow.ToFileTimeUtc();
+public static ulong UtcNow => (ulong)DateTime.UtcNow.ToFileTimeUtc();
 
     /// <summary>
     /// Determines whether a <see cref="DateTime"/> value represents Windows file time <c>0</c>.
