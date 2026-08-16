@@ -25,6 +25,7 @@ internal sealed class RootContext : ContextBase, IDisposable
     readonly IOContextFlags contextFlags;
     readonly CfbBinaryWriter? writer;
     readonly TransactedStream? transactedStream;
+    Header? lastFlushedHeader;
     MiniFat? miniFat;
     FatStream? miniStream;
 
@@ -139,6 +140,10 @@ internal sealed class RootContext : ContextBase, IDisposable
             WriteHeader();
             DirectoryEntries.Write(DirectoryEntries.RootEntry);
         }
+        else
+        {
+            lastFlushedHeader = Header.Clone();
+        }
     }
 
     public void Dispose()
@@ -187,7 +192,8 @@ internal sealed class RootContext : ContextBase, IDisposable
         Fat.Flush();
         if (transactedStream is null)
             TrimBaseStream();
-        WriteHeader();
+        if (!Header.Equals(lastFlushedHeader))
+            WriteHeader();
         writer.BaseStream.Flush();
     }
 
@@ -213,7 +219,8 @@ internal sealed class RootContext : ContextBase, IDisposable
             Fat.TrySetValue(RangeLockSectorId, SectorType.Free);
 
         Length = lastUsedSector.EndPosition;
-        BaseStream.SetLength(Length);
+        if (BaseStream.Length != Length)
+            BaseStream.SetLength(Length);
     }
 
     public void WriteHeader()
@@ -221,6 +228,7 @@ internal sealed class RootContext : ContextBase, IDisposable
         CfbBinaryWriter writer = Writer;
         writer.Seek(0, SeekOrigin.Begin);
         writer.Write(Header);
+        lastFlushedHeader = Header.Clone();
     }
 
     public void Commit()
