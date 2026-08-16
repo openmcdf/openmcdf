@@ -328,7 +328,7 @@ public sealed class RootStorageTests
     [TestMethod]
     [DataRow(Version.V3)]
     [DataRow(Version.V4)]
-    public void TransactionSignatureNumberIncrementsOnFlush(Version version)
+    public void TransactionSignatureNumberDoesNotIncrementOnFlush(Version version)
     {
         using MemoryStream memoryStream = new();
         using var rootStorage = RootStorage.Create(memoryStream, version, StorageModeFlags.LeaveOpen);
@@ -336,15 +336,15 @@ public sealed class RootStorageTests
         Assert.AreEqual(0u, rootStorage.Context.Header.TransactionSignatureNumber);
 
         rootStorage.Flush();
-        Assert.AreEqual(1u, rootStorage.Context.Header.TransactionSignatureNumber);
+        Assert.AreEqual(0u, rootStorage.Context.Header.TransactionSignatureNumber);
 
         rootStorage.Flush();
-        Assert.AreEqual(2u, rootStorage.Context.Header.TransactionSignatureNumber);
+        Assert.AreEqual(0u, rootStorage.Context.Header.TransactionSignatureNumber);
 
         memoryStream.Position = 0;
         using CfbBinaryReader reader = new(memoryStream);
         Header header = reader.ReadHeader();
-        Assert.AreEqual(2u, header.TransactionSignatureNumber);
+        Assert.AreEqual(0u, header.TransactionSignatureNumber);
     }
 
     [TestMethod]
