@@ -216,7 +216,10 @@ internal sealed class RootContext : ContextBase, IDisposable
             throw new FileFormatException("Last used sector is invalid.");
 
         if (Version is Version.V4 && lastUsedSector.EndPosition < RangeLockSectorOffset)
-            Fat.TrySetValue(RangeLockSectorId, SectorType.Free);
+        {
+            if (Fat.TrySetValue(RangeLockSectorId, SectorType.Free))
+                Fat.Flush();
+        }
 
         Length = lastUsedSector.EndPosition;
         if (BaseStream.Length != Length)
