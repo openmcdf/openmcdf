@@ -472,6 +472,48 @@ public sealed class StreamTests
     }
 
     [TestMethod]
+    [DataRow(Version.V3, (int)WriteMode.Array)]
+    [DataRow(Version.V4, (int)WriteMode.Array)]
+#if !NETSTANDARD2_0 && !NETFRAMEWORK
+    [DataRow(Version.V3, (int)WriteMode.Span)]
+    [DataRow(Version.V4, (int)WriteMode.Span)]
+#endif
+    public void TransactedWriteAcrossSectorBoundary(Version version, int writeModeValue)
+    {
+        WriteMode writeMode = (WriteMode)writeModeValue;
+        int sectorSize = version == Version.V3 ? 512 : 4096;
+        int streamLength = sectorSize * 2;
+
+        using MemoryStream memoryStream = new();
+        using (var rootStorage = RootStorage.Create(memoryStream, version, StorageModeFlags.LeaveOpen))
+        {
+            using CfbStream stream = rootStorage.CreateStream("TestStream1");
+            stream.SetLength(streamLength);
+        }
+
+        byte[] expectedBuffer = new byte[streamLength];
+        byte[] writeBuffer = TestData.CreateByteArray(32);
+        int writeOffset = sectorSize - 8;
+        Array.Copy(writeBuffer, 0, expectedBuffer, writeOffset, writeBuffer.Length);
+
+        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.LeaveOpen | StorageModeFlags.Transacted | StorageModeFlags.StrictValidation))
+        {
+            using CfbStream stream = rootStorage.OpenStream("TestStream1");
+            stream.Position = writeOffset;
+            stream.Write(writeBuffer, writeMode);
+            rootStorage.Commit();
+        }
+
+        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.StrictValidation))
+        using (CfbStream stream = rootStorage.OpenStream("TestStream1"))
+        {
+            byte[] actualBuffer = new byte[streamLength];
+            stream.ReadExactly(actualBuffer);
+            CollectionAssert.AreEqual(expectedBuffer, actualBuffer);
+        }
+    }
+
+    [TestMethod]
     [DynamicData(nameof(TestData.VersionsAndSizes), typeof(TestData))]
     public void ModifyRevert(Version version, int length)
     {
