@@ -175,7 +175,7 @@ internal sealed class FatStream : Stream
 
         if (newPosition < 0)
             ThrowHelper.ThrowSeekBeforeOrigin();
-        ThrowHelper.ThrowIfSeekBeyondMaximumLength(newPosition, MaxStreamLength);
+        ThrowHelper.ThrowIfSeekBeyondMaximumLength(newPosition, MaxStreamLength, nameof(offset));
         position = newPosition;
         return newPosition;
     }

@@ -48,10 +48,10 @@ internal static class ThrowHelper
 
     public static void ThrowSeekBeforeOrigin() => throw new IOException("An attempt was made to move the position before the beginning of the stream.");
 
-    public static void ThrowIfSeekBeyondMaximumLength(long value, long maxLength)
+    public static void ThrowIfSeekBeyondMaximumLength(long value, long maxLength, string paramName)
     {
         if (value > maxLength)
-            throw new ArgumentOutOfRangeException("An attempt was made to move the position beyond the maximum length of the stream.");
+            throw new ArgumentOutOfRangeException(paramName, "An attempt was made to move the position beyond the maximum length of the stream.");
     }
 
     public static void ThrowIfNameIsInvalid(string value)
