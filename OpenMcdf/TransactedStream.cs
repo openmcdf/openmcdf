@@ -1,6 +1,4 @@
-﻿using System.Diagnostics;
-
-namespace OpenMcdf;
+﻿namespace OpenMcdf;
 
 /// <summary>
 /// Stores modifications to a CFB stream that can be committed or reverted.
@@ -91,35 +89,39 @@ internal sealed class TransactedStream : Stream
     {
         ThrowHelper.ThrowIfStreamArgumentsAreInvalid(buffer, offset, count);
 
-        uint sectorId = GetFatChainIndexAndSectorOffset(originalStream.Position, out long sectorOffset);
-        int remainingFromSector = Context.SectorSize - (int)sectorOffset;
-        int localCount = Math.Min(count, remainingFromSector);
-        Debug.Assert(localCount == count);
-
-        bool added = false;
-        if (!dirtySectorPositions.TryGetValue(sectorId, out long overlayPosition))
+        int totalWritten = 0;
+        while (totalWritten < count)
         {
-            overlayPosition = OverlayStream.Length;
-            dirtySectorPositions.Add(sectorId, overlayPosition);
-            added = true;
+            uint sectorId = GetFatChainIndexAndSectorOffset(originalStream.Position, out long sectorOffset);
+            int remainingFromSector = Context.SectorSize - (int)sectorOffset;
+            int localCount = Math.Min(count - totalWritten, remainingFromSector);
+
+            bool added = false;
+            if (!dirtySectorPositions.TryGetValue(sectorId, out long overlayPosition))
+            {
+                overlayPosition = OverlayStream.Length;
+                dirtySectorPositions.Add(sectorId, overlayPosition);
+                added = true;
+            }
+
+            long originalPosition = originalStream.Position;
+            if (added && localCount != Context.SectorSize && originalPosition < originalStream.Length)
+            {
+                // Copy the existing sector data
+                originalStream.Position = originalPosition - sectorOffset;
+                originalStream.ReadExactly(this.buffer, 0, this.buffer.Length);
+
+                OverlayStream.Position = overlayPosition;
+                OverlayStream.Write(this.buffer, 0, this.buffer.Length);
+            }
+
+            OverlayStream.Position = overlayPosition + sectorOffset;
+            OverlayStream.Write(buffer, offset + totalWritten, localCount);
+            if (OverlayStream.Length < overlayPosition + Context.SectorSize)
+                OverlayStream.SetLength(overlayPosition + Context.SectorSize);
+            originalStream.Position = originalPosition + localCount;
+            totalWritten += localCount;
         }
-
-        long originalPosition = originalStream.Position;
-        if (added && localCount != Context.SectorSize && originalPosition < originalStream.Length)
-        {
-            // Copy the existing sector data
-            originalStream.Position = originalPosition - sectorOffset;
-            originalStream.ReadExactly(this.buffer, 0, this.buffer.Length);
-
-            OverlayStream.Position = overlayPosition;
-            OverlayStream.Write(this.buffer, 0, this.buffer.Length);
-        }
-
-        OverlayStream.Position = overlayPosition + sectorOffset;
-        OverlayStream.Write(buffer, offset, localCount);
-        if (OverlayStream.Length < overlayPosition + Context.SectorSize)
-            OverlayStream.SetLength(overlayPosition + Context.SectorSize);
-        originalStream.Position = originalPosition + localCount;
     }
 
     public void Commit()
@@ -151,7 +153,7 @@ internal sealed class TransactedStream : Stream
         uint sectorId = (uint)Math.DivRem(originalStream.Position, Context.SectorSize, out long sectorOffset);
         int remainingFromSector = Context.SectorSize - (int)sectorOffset;
         int localCount = Math.Min(buffer.Length, remainingFromSector);
-        Debug.Assert(localCount == buffer.Length);
+        System.Diagnostics.Debug.Assert(localCount == buffer.Length);
 
         Span<byte> slice = buffer[..localCount];
         int read;
@@ -173,35 +175,39 @@ internal sealed class TransactedStream : Stream
 
     public override void Write(ReadOnlySpan<byte> buffer)
     {
-        uint sectorId = (uint)Math.DivRem(originalStream.Position, Context.SectorSize, out long sectorOffset);
-        int remainingFromSector = Context.SectorSize - (int)sectorOffset;
-        int localCount = Math.Min(buffer.Length, remainingFromSector);
-        Debug.Assert(localCount == buffer.Length);
-
-        bool added = false;
-        if (!dirtySectorPositions.TryGetValue(sectorId, out long overlayPosition))
+        int totalWritten = 0;
+        while (totalWritten < buffer.Length)
         {
-            overlayPosition = OverlayStream.Length;
-            dirtySectorPositions.Add(sectorId, overlayPosition);
-            added = true;
+            uint sectorId = (uint)Math.DivRem(originalStream.Position, Context.SectorSize, out long sectorOffset);
+            int remainingFromSector = Context.SectorSize - (int)sectorOffset;
+            int localCount = Math.Min(buffer.Length - totalWritten, remainingFromSector);
+
+            bool added = false;
+            if (!dirtySectorPositions.TryGetValue(sectorId, out long overlayPosition))
+            {
+                overlayPosition = OverlayStream.Length;
+                dirtySectorPositions.Add(sectorId, overlayPosition);
+                added = true;
+            }
+
+            long originalPosition = originalStream.Position;
+            if (added && localCount != Context.SectorSize && originalPosition < originalStream.Length)
+            {
+                // Copy the existing sector data
+                originalStream.Position = originalPosition - sectorOffset;
+                originalStream.ReadExactly(this.buffer);
+
+                OverlayStream.Position = overlayPosition;
+                OverlayStream.Write(this.buffer, 0, this.buffer.Length);
+            }
+
+            OverlayStream.Position = overlayPosition + sectorOffset;
+            OverlayStream.Write(buffer.Slice(totalWritten, localCount));
+            if (OverlayStream.Length < overlayPosition + Context.SectorSize)
+                OverlayStream.SetLength(overlayPosition + Context.SectorSize);
+            originalStream.Position = originalPosition + localCount;
+            totalWritten += localCount;
         }
-
-        long originalPosition = originalStream.Position;
-        if (added && localCount != Context.SectorSize && originalPosition < originalStream.Length)
-        {
-            // Copy the existing sector data
-            originalStream.Position = originalPosition - sectorOffset;
-            originalStream.ReadExactly(this.buffer);
-
-            OverlayStream.Position = overlayPosition;
-            OverlayStream.Write(this.buffer, 0, this.buffer.Length);
-        }
-
-        OverlayStream.Position = overlayPosition + sectorOffset;
-        OverlayStream.Write(buffer);
-        if (OverlayStream.Length < overlayPosition + Context.SectorSize)
-            OverlayStream.SetLength(overlayPosition + Context.SectorSize);
-        originalStream.Position = originalPosition + localCount;
     }
 
 #endif
