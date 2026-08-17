@@ -1,6 +1,4 @@
-﻿using System.Diagnostics;
-
-namespace OpenMcdf;
+﻿namespace OpenMcdf;
 
 /// <summary>
 /// Stores modifications to a CFB stream that can be committed or reverted.
@@ -155,7 +153,7 @@ internal sealed class TransactedStream : Stream
         uint sectorId = (uint)Math.DivRem(originalStream.Position, Context.SectorSize, out long sectorOffset);
         int remainingFromSector = Context.SectorSize - (int)sectorOffset;
         int localCount = Math.Min(buffer.Length, remainingFromSector);
-        Debug.Assert(localCount == buffer.Length);
+        System.Diagnostics.Debug.Assert(localCount == buffer.Length);
 
         Span<byte> slice = buffer[..localCount];
         int read;
