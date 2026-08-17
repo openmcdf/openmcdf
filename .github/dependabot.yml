@@ -9,7 +9,7 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
-groups:
+    groups:
       # Group name used in PR titles and branches
       avalonia-ui:
         patterns:
