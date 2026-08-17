@@ -148,10 +148,23 @@ internal sealed class RootContext : ContextBase, IDisposable
 
     public void Dispose()
     {
-        if (!IsDisposed)
+        if (IsDisposed)
+            return;
+
+        try
         {
             Flush();
+        }
+        finally
+        {
+            DisposeCore();
+        }
+    }
 
+    void DisposeCore()
+    {
+        try
+        {
             miniStream?.Dispose();
             miniFat?.Dispose();
             DirectoryEntries.Dispose();
@@ -164,6 +177,9 @@ internal sealed class RootContext : ContextBase, IDisposable
                 File.Delete(overlayFileName);
             if (!contextFlags.HasFlag(IOContextFlags.LeaveOpen))
                 BaseStream.Dispose();
+        }
+        finally
+        {
             IsDisposed = true;
         }
     }
