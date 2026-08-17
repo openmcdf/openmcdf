@@ -245,8 +245,8 @@ internal sealed class MiniFatChainEnumerator : ContextBase, IEnumerator<uint>
 
     void ValidateMiniSectorId(uint sectorId)
     {
-        MiniSector miniSector = new(sectorId, Context.MiniSectorSize);
-        if (miniSector.EndPosition > Context.DirectoryEntries.RootEntry.StreamLength)
-            throw new FileFormatException($"Mini FAT sector ID {sectorId} is beyond the end of the mini stream.");
+        ulong maxMiniFatEntries = (ulong)Context.Header.MiniFatSectorCount * (ulong)(Context.SectorSize / sizeof(uint));
+        if ((ulong)sectorId >= maxMiniFatEntries)
+            throw new FileFormatException($"Mini FAT sector ID {sectorId} is beyond the Mini FAT entry count.");
     }
 }

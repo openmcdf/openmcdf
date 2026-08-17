@@ -43,7 +43,7 @@ public sealed class StreamTests
     }
 
     [TestMethod]
-    public void ReadMiniFatChainBeyondMiniStreamThrows()
+    public void ReadMiniFatChainBeyondMiniFatEntryCountThrows()
     {
         using MemoryStream memoryStream = TestData.CreateMemoryStreamFromFile("TestStream_v3_65.cfs");
         CorruptMiniFatChainToOutOfRangeSector(memoryStream);
@@ -638,15 +638,14 @@ public sealed class StreamTests
         Header header = reader.ReadHeader();
 
         int sectorSize = 1 << header.SectorShift;
-        int miniSectorSize = 1 << header.MiniSectorShift;
         long directorySectorPosition = (header.FirstDirectorySectorId + 1L) * sectorSize;
 
         reader.Position = directorySectorPosition;
-        DirectoryEntry rootEntry = reader.ReadDirectoryEntry((Version)header.MajorVersion, 0);
+        _ = reader.ReadDirectoryEntry((Version)header.MajorVersion, 0);
         DirectoryEntry testStreamEntry = reader.ReadDirectoryEntry((Version)header.MajorVersion, 1);
         Assert.AreEqual("TestStream", testStreamEntry.NameString);
 
-        uint outOfRangeMiniSectorId = (uint)((rootEntry.StreamLength + miniSectorSize - 1) / miniSectorSize);
+        uint outOfRangeMiniSectorId = header.MiniFatSectorCount * (uint)(sectorSize / sizeof(uint));
         long miniFatEntryPosition = ((header.FirstMiniFatSectorId + 1L) * sectorSize) + (testStreamEntry.StartSectorId * sizeof(uint));
         stream.Position = miniFatEntryPosition;
         byte[] data = BitConverter.GetBytes(outOfRangeMiniSectorId);
