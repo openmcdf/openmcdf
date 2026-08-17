@@ -616,7 +616,7 @@ public sealed class StreamTests
         ArgumentOutOfRangeException setLengthException = Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => stream.SetLength(length + 1));
         ArgumentOutOfRangeException setPositionException = Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => stream.Position = length + 1);
         Assert.AreEqual("value", setLengthException.ParamName);
-        Assert.AreEqual("value", setPositionException.ParamName);
+        Assert.AreEqual("offset", setPositionException.ParamName);
 
         stream.Position = length;
         Assert.Throws<IOException>(() => stream.WriteByte(0));
