@@ -156,6 +156,42 @@ public sealed class StreamTests
     [TestMethod]
     [DynamicData(nameof(TestData.ShortVersionsAndSizes), typeof(TestData))]
     public void WriteSingleByte(Version version, int length) => WriteCore(version, length, WriteMode.SingleByte);
+
+    [TestMethod]
+    [DataRow(Version.V3)]
+    [DataRow(Version.V4)]
+    public void WriteSpanGrowthWithinMiniSectorPersistsStreamLength(Version version)
+    {
+        const int initialLength = 65;
+        const byte appendedByte = 0xA5;
+
+        byte[] expectedBuffer = new byte[initialLength + 1];
+        TestData.CreateByteArray(initialLength).CopyTo(expectedBuffer, 0);
+        expectedBuffer[^1] = appendedByte;
+
+        using MemoryStream memoryStream = new();
+        using (var rootStorage = RootStorage.Create(memoryStream, version, StorageModeFlags.LeaveOpen))
+        {
+            using CfbStream stream = rootStorage.CreateStream("TestStream");
+            stream.Write(expectedBuffer, 0, initialLength);
+            stream.Flush();
+
+            stream.Position = initialLength;
+            byte[] appendedBuffer = [appendedByte];
+            stream.Write(appendedBuffer.AsSpan());
+            Assert.AreEqual(expectedBuffer.Length, stream.Length);
+        }
+
+        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.StrictValidation))
+        {
+            using CfbStream stream = rootStorage.OpenStream("TestStream");
+            Assert.AreEqual(expectedBuffer.Length, stream.Length);
+
+            byte[] actualBuffer = new byte[expectedBuffer.Length];
+            stream.ReadExactly(actualBuffer);
+            CollectionAssert.AreEqual(expectedBuffer, actualBuffer);
+        }
+    }
 #endif
 
     static void WriteCore(Version version, int length, WriteMode mode)
