@@ -53,6 +53,25 @@ public sealed class RootStorageTests
     }
 
     [TestMethod]
+    public void OpenNonStrictWithNonZeroHeaderCLSID()
+    {
+        Guid expectedHeaderCLSID = Guid.Parse("00020906-0000-0000-c000-000000000046");
+        using MemoryStream stream = TestData.CreateMemoryStreamFromFile("TestStream_v3_0.cfs");
+        stream.Position = 8;
+        stream.Write(expectedHeaderCLSID.ToByteArray(), 0, 16);
+        stream.Position = 0;
+
+        using (var rootStorage = RootStorage.Open(stream, StorageModeFlags.LeaveOpen))
+            Assert.AreEqual(expectedHeaderCLSID, rootStorage.HeaderCLSID);
+
+        stream.Position = 0;
+        Assert.ThrowsExactly<FileFormatException>(() =>
+        {
+            using var rootStorage = RootStorage.Open(stream, StorageModeFlags.LeaveOpen | StorageModeFlags.StrictValidation);
+        });
+    }
+
+    [TestMethod]
     [DataRow(Version.V3)]
     [DataRow(Version.V4)]
     public void ConsolidateMemoryStream(Version version)

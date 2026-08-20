@@ -306,6 +306,11 @@ public sealed class RootStorage : Storage, IDisposable
     public bool CanCommit => !Context.IsDisposed && Context.CanCommit;
 
     /// <summary>
+    /// Gets the CLSID stored in the compound file header.
+    /// </summary>
+    public Guid HeaderCLSID => Context.Header.CLSID;
+
+    /// <summary>
     /// Flushes changes to the underlying stream. Optionally consolidates the file.
     /// </summary>
     /// <param name="consolidate">If true, consolidates the file after flushing.</param>

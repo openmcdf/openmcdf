@@ -39,9 +39,14 @@ public sealed class BinaryReaderTests
         Assert.ThrowsExactly<FileFormatException>(() => reader.ReadHeader());
 
         stream.CopyAllTo(memoryStream);
-        memoryStream.Position = 24;
+        memoryStream.Position = 8;
         memoryStream.WriteByte(1); // Corrupt CLSID
-        Assert.ThrowsExactly<FileFormatException>(() => reader.ReadHeader());
+        memoryStream.Position = 0;
+        header = reader.ReadHeader();
+        Assert.AreNotEqual(Guid.Empty, header.CLSID);
+        memoryStream.Position = 0;
+        using (CfbBinaryReader strictReader = new(memoryStream, true))
+            Assert.ThrowsExactly<FileFormatException>(() => strictReader.ReadHeader());
 
         stream.CopyAllTo(memoryStream);
         memoryStream.Position = 26;

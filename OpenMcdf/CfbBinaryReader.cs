@@ -41,7 +41,7 @@ internal sealed class CfbBinaryReader : BinaryReader
         if (!signature.SequenceEqual(Header.Signature))
             throw new FileFormatException("Invalid header signature.");
         header.CLSID = ReadGuid();
-        if (header.CLSID != Guid.Empty)
+        if (strict && header.CLSID != Guid.Empty)
             throw new FileFormatException($"Invalid header CLSID: {header.CLSID}.");
         header.MinorVersion = ReadUInt16();
         header.MajorVersion = ReadUInt16();
