@@ -53,6 +53,50 @@ public sealed class RootStorageTests
     }
 
     [TestMethod]
+    public void OpenNonStrictWithNonZeroHeaderCLSID()
+    {
+        Guid expectedHeaderCLSID = Guid.Parse("00020906-0000-0000-c000-000000000046");
+        using MemoryStream stream = TestData.CreateMemoryStreamFromFile("TestStream_v3_0.cfs");
+        stream.Position = 8;
+        stream.Write(expectedHeaderCLSID.ToByteArray(), 0, 16);
+        stream.Position = 0;
+
+        using (var rootStorage = RootStorage.Open(stream, StorageModeFlags.LeaveOpen))
+            Assert.AreEqual(expectedHeaderCLSID, rootStorage.HeaderCLSID);
+
+        stream.Position = 0;
+        Assert.ThrowsExactly<FileFormatException>(() =>
+        {
+            using var rootStorage = RootStorage.Open(stream, StorageModeFlags.LeaveOpen | StorageModeFlags.StrictValidation);
+        });
+    }
+
+    [TestMethod]
+    public void SetHeaderCLSID()
+    {
+        Guid expectedHeaderCLSID = Guid.Parse("00020906-0000-0000-c000-000000000046");
+
+        using MemoryStream stream = new();
+        using (var rootStorage = RootStorage.Create(stream, Version.V3, StorageModeFlags.LeaveOpen))
+        {
+            rootStorage.HeaderCLSID = expectedHeaderCLSID;
+            Assert.AreEqual(expectedHeaderCLSID, rootStorage.HeaderCLSID);
+        }
+
+        stream.Position = 0;
+        using (var rootStorage = RootStorage.Open(stream, StorageModeFlags.LeaveOpen))
+        {
+            Assert.AreEqual(expectedHeaderCLSID, rootStorage.HeaderCLSID);
+        }
+
+        using MemoryStream strictStream = new();
+        using var strictRootStorage = RootStorage.Create(strictStream, Version.V3, StorageModeFlags.LeaveOpen | StorageModeFlags.StrictValidation);
+        Assert.ThrowsExactly<FileFormatException>(() => strictRootStorage.HeaderCLSID = expectedHeaderCLSID);
+        strictRootStorage.HeaderCLSID = Guid.Empty;
+        Assert.AreEqual(Guid.Empty, strictRootStorage.HeaderCLSID);
+    }
+
+    [TestMethod]
     [DataRow(Version.V3)]
     [DataRow(Version.V4)]
     public void ConsolidateMemoryStream(Version version)
