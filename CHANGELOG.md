@@ -1,5 +1,17 @@
 # OpenMcdf Changelog
 
+## 3.3.0
+
+* Increment transaction signature on commit
+* Avoid timestamp updates on unmodified storages
+* Flush dirty FAT when trimming past range lock
+* Handle large file times
+* Dispose RootStorage exception-path file handles
+* Persist mini-stream length on span-based writes
+* Fix ArgumentOutOfRangeException paramName usage
+* Harden RootContext.Dispose
+* Enforce header CLSID only in strict mode
+
 ## 3.2.0
 
 * Allow optional strict validation
