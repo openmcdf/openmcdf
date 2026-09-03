@@ -12,17 +12,18 @@ on:
     - "v[0-9]+.[0-9]+.[0-9]+-experimental.[0-9]+"
     - "v[0-9]+.[0-9]+.[0-9]+-preview.[0-9]+"
     - "v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+"
+  workflow_dispatch: # Enables the manual trigger button
 
 jobs:
   release-nuget:
-  
+
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
           workloads: android, ios
@@ -30,7 +31,12 @@ jobs:
       - name: Pack
         run: dotnet pack OpenMcdf.slnx -c Release -p:ContinuousIntegrationBuild=true
 
+        # Get a short-lived NuGet API key
+      - name: NuGet login (OIDC → temp API key)
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
       - name: Push
-        run: dotnet nuget push artifacts\package\release\*.nupkg -s https://api.nuget.org/v3/index.json -k ${{ secrets.NUGET_API_KEY }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.NUGET_API_KEY }}
+        run: dotnet nuget push artifacts\package\release\*.nupkg --api-key ${{steps.login.outputs.NUGET_API_KEY}} --source https://api.nuget.org/v3/index.json
