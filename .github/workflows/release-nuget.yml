@@ -1,6 +1,7 @@
 name: Create a (Pre)release on NuGet
 
 permissions:
+  id-token: write # Enable GitHub OIDC token issuance for this job
   contents: read
 
 on:
