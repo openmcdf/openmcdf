@@ -29,6 +29,10 @@
     <PackageReference Include="MSTest" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageVersion Update="System.Collections.Immutable" Version="10.0.0" />
+  </ItemGroup>
+
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier($(TargetFramework))) == 'windows'">
     <ProjectReference Include="..\StructuredStorage\StructuredStorage.csproj" />
   </ItemGroup>
