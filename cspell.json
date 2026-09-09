@@ -1,0 +1,13 @@
+{
+  "version": "0.2",
+  "dictionaryDefinitions": [
+    {
+      "name": "project-ignored",
+      "path": "./exclusion.dic",
+      "addWords": true
+    }
+  ],
+  "dictionaries": [
+    "project-ignored"
+  ]
+}
