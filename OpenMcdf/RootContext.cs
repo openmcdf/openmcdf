@@ -96,6 +96,26 @@ internal sealed class RootContext : ContextBase, IDisposable
 
     public uint SectorCount => (uint)Math.Max(0, (Length - SectorSize) / SectorSize); // TODO: Check
 
+    /// <summary>
+    /// Gets the maximum number of DIFAT sectors that could be required to address every sector in the stream.
+    /// </summary>
+    /// <remarks>
+    /// The first <see cref="Header.DifatArrayLength"/> FAT sectors are addressed by the header, so DIFAT
+    /// sectors are only required once the FAT outgrows it.
+    /// </remarks>
+    public uint MaxDifatSectorCount
+    {
+        get
+        {
+            long fatSectorCount = (SectorCount + FatEntriesPerSector - 1) / FatEntriesPerSector;
+            if (fatSectorCount <= Header.DifatArrayLength)
+                return 0;
+
+            long difatEntryCount = fatSectorCount - Header.DifatArrayLength;
+            return (uint)((difatEntryCount + DifatEntriesPerSector - 1) / DifatEntriesPerSector);
+        }
+    }
+
     public RootContext(RootContextSite rootContextSite, Stream stream, Version version, IOContextFlags contextFlags = IOContextFlags.None)
         : base(rootContextSite)
     {
@@ -116,6 +136,9 @@ internal sealed class RootContext : ContextBase, IDisposable
         MaxStreamLength = Version is Version.V3 ? MaximumV3StreamLength : SectorType.Maximum * SectorSize;
 
         Length = stream.Length;
+
+        if (IsStrict && Header.DifatSectorCount > MaxDifatSectorCount)
+            throw new FileFormatException($"DIFAT sector count {Header.DifatSectorCount} exceeds the maximum of {MaxDifatSectorCount} for a stream of length {Length}.");
 
         if (contextFlags.HasFlag(IOContextFlags.Transacted))
         {
