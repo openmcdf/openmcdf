@@ -117,6 +117,9 @@ internal sealed class RootContext : ContextBase, IDisposable
 
         Length = stream.Length;
 
+        if (IsStrict && Length > MaxStreamLength)
+            throw new FileFormatException($"Stream length {Length} exceeds the maximum length {MaxStreamLength}.");
+
         if (contextFlags.HasFlag(IOContextFlags.Transacted))
         {
             Stream overlayStream = stream is MemoryStream ? new MemoryStream() : File.Create(Path.GetTempFileName());
