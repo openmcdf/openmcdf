@@ -563,4 +563,12 @@ public sealed class RootStorageTests
         using var root = RootStorage.Open(stream, StorageModeFlags.StrictValidation);
         Assert.ThrowsExactly<FileFormatException>(() => root.Delete("AB"));
     }
+
+    [TestMethod]
+    [DataRow("FatChainLoopInDispose.cfs")]
+    public void DifatSectorCountExceedingFileSizeThrowsFileFormatException(string fileName)
+    {
+        using MemoryStream stream = TestData.CreateMemoryStreamFromFile(fileName);
+        Assert.ThrowsExactly<FileFormatException>(() => RootStorage.Open(stream, StorageModeFlags.LeaveOpen | StorageModeFlags.StrictValidation));
+    }
 }
