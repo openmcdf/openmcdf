@@ -56,7 +56,7 @@ public sealed class RootStorageTests
     public void OpenWithStrictValidationThrowsWhenStreamLengthExceedsMaximum()
     {
         long length = RootContext.MaximumV3StreamLength + 1;
-        using var stream = new LengthReportingMemoryStream(TestData.CreateMemoryStreamFromFile("TestStream_v3_0.cfs"), length);
+        using var stream = new LengthReportingMemoryStream(File.ReadAllBytes("TestStream_v3_0.cfs"), length);
         FileFormatException exception = Assert.ThrowsExactly<FileFormatException>(() =>
         {
             using var rootStorage = RootStorage.Open(stream, StorageModeFlags.StrictValidation);
@@ -580,8 +580,8 @@ public sealed class RootStorageTests
     {
         readonly long length;
 
-        public LengthReportingMemoryStream(MemoryStream inner, long length)
-            : base(inner.ToArray(), writable: false)
+        public LengthReportingMemoryStream(byte[] buffer, long length)
+            : base(buffer, writable: false)
             => this.length = length;
 
         public override long Length => length;
