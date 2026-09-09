@@ -56,7 +56,7 @@ public sealed class RootStorageTests
     public void OpenWithStrictValidationThrowsWhenStreamLengthExceedsMaximum()
     {
         long length = RootContext.MaximumV3StreamLength + 1;
-        using var stream = new LengthReportingStream(TestData.CreateMemoryStreamFromFile("TestStream_v3_0.cfs"), length);
+        using var stream = new LengthReportingMemoryStream(TestData.CreateMemoryStreamFromFile("TestStream_v3_0.cfs"), length);
         FileFormatException exception = Assert.ThrowsExactly<FileFormatException>(() =>
         {
             using var rootStorage = RootStorage.Open(stream, StorageModeFlags.StrictValidation);
@@ -576,50 +576,14 @@ public sealed class RootStorageTests
         Assert.ThrowsExactly<FileFormatException>(() => root.Delete("AB"));
     }
 
-    sealed class LengthReportingStream : Stream
+    sealed class LengthReportingMemoryStream : MemoryStream
     {
-        readonly Stream inner;
         readonly long length;
 
-        public LengthReportingStream(Stream inner, long length)
-        {
-            this.inner = inner;
-            this.length = length;
-        }
-
-        public override bool CanRead => inner.CanRead;
-
-        public override bool CanSeek => inner.CanSeek;
-
-        public override bool CanWrite => inner.CanWrite;
+        public LengthReportingMemoryStream(MemoryStream inner, long length)
+            : base(inner.ToArray(), writable: false)
+            => this.length = length;
 
         public override long Length => length;
-
-        public override long Position
-        {
-            get => inner.Position;
-            set => inner.Position = value;
-        }
-
-        public override void Flush() => inner.Flush();
-
-        public override int Read(byte[] buffer, int offset, int count) => inner.Read(buffer, offset, count);
-
-        public override int Read(Span<byte> buffer) => inner.Read(buffer);
-
-        public override long Seek(long offset, SeekOrigin origin) => inner.Seek(offset, origin);
-
-        public override void SetLength(long value) => inner.SetLength(value);
-
-        public override void Write(byte[] buffer, int offset, int count) => inner.Write(buffer, offset, count);
-
-        public override void Write(ReadOnlySpan<byte> buffer) => inner.Write(buffer);
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-                inner.Dispose();
-            base.Dispose(disposing);
-        }
     }
 }
