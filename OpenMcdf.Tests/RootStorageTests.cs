@@ -565,10 +565,16 @@ public sealed class RootStorageTests
     }
 
     [TestMethod]
-    [DataRow("FatChainLoopInDispose.cfs")]
-    public void DifatSectorCountExceedingFileSizeThrowsFileFormatException(string fileName)
+    public void DifatSectorCountExceedingFileSizeThrowsFileFormatException()
     {
-        using MemoryStream stream = TestData.CreateMemoryStreamFromFile(fileName);
+        using MemoryStream stream = TestData.CreateMemoryStreamFromFile("TestStream_v3_0.cfs");
+
+        // DIFAT sector count is at byte offset 76 in the header (see CfbBinaryReader.ReadHeader).
+        stream.Position = 76;
+        byte[] difatCountBytes = BitConverter.GetBytes(1u);
+        stream.Write(difatCountBytes, 0, difatCountBytes.Length);
+        stream.Position = 0;
+
         Assert.ThrowsExactly<FileFormatException>(() => RootStorage.Open(stream, StorageModeFlags.LeaveOpen | StorageModeFlags.StrictValidation));
     }
 }
