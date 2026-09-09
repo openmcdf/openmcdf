@@ -53,6 +53,18 @@ public sealed class RootStorageTests
     }
 
     [TestMethod]
+    public void OpenWithStrictValidationThrowsWhenStreamLengthExceedsMaximum()
+    {
+        long length = RootContext.MaximumV3StreamLength + 1;
+        using var stream = new LengthReportingMemoryStream(File.ReadAllBytes("TestStream_v3_0.cfs"), length);
+        FileFormatException exception = Assert.ThrowsExactly<FileFormatException>(() =>
+        {
+            using var rootStorage = RootStorage.Open(stream, StorageModeFlags.StrictValidation);
+        });
+        Assert.AreEqual($"Stream length {length} exceeds the maximum length {RootContext.MaximumV3StreamLength}.", exception.Message);
+    }
+
+    [TestMethod]
     public void OpenNonStrictWithNonZeroHeaderCLSID()
     {
         Guid expectedHeaderCLSID = Guid.Parse("00020906-0000-0000-c000-000000000046");
@@ -562,5 +574,16 @@ public sealed class RootStorageTests
         using MemoryStream stream = TestData.CreateMemoryStreamFromFile("DirectoryTreeCycle.cfb");
         using var root = RootStorage.Open(stream, StorageModeFlags.StrictValidation);
         Assert.ThrowsExactly<FileFormatException>(() => root.Delete("AB"));
+    }
+
+    sealed class LengthReportingMemoryStream : MemoryStream
+    {
+        readonly long length;
+
+        public LengthReportingMemoryStream(byte[] buffer, long length)
+            : base(buffer, writable: false)
+            => this.length = length;
+
+        public override long Length => length;
     }
 }
