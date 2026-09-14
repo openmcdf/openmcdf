@@ -86,7 +86,7 @@ internal sealed class DirectoryEntries : ContextBase, IDisposable
 
         CfbBinaryReader reader = Context.Reader;
         reader.Position = fatChainEnumerator.CurrentSector.Position + (entryIndex * DirectoryEntry.Length);
-        return reader.ReadDirectoryEntry(Context.Version, streamId);
+        return reader.ReadDirectoryEntry(Context.Version, streamId, Context.MaxStreamLength);
     }
 
     public DirectoryEntry? TryGetSibling(DirectoryEntry entry, SiblingType siblingType, IDirectoryTreeValidator validator)

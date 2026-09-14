@@ -64,7 +64,7 @@ public sealed class BinaryWriterTests
 
         stream.Position = 0;
         using CfbBinaryReader reader = new(stream);
-        DirectoryEntry actual = reader.ReadDirectoryEntry(Version.V4, 0);
+        DirectoryEntry actual = reader.ReadDirectoryEntry(Version.V4, 0, SectorType.Maximum * 4096L);
 
         Assert.AreEqual(expected, actual);
     }
