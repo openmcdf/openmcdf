@@ -31,7 +31,7 @@ internal sealed class DirectoryEntry : IEquatable<DirectoryEntry?>
 {
     internal const int Length = 128;
     internal const int NameFieldLength = 64;
-    internal const uint MaxV3StreamLength = 0x80000000;
+    internal const long MaxV3StreamLength = 0x80000000;
 
     internal static readonly byte[] Unallocated = new byte[128];
 

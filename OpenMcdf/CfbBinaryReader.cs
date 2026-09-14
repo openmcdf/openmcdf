@@ -91,7 +91,7 @@ internal sealed class CfbBinaryReader : BinaryReader
         return color;
     }
 
-    public DirectoryEntry ReadDirectoryEntry(Version version, uint sid)
+    public DirectoryEntry ReadDirectoryEntry(Version version, uint sid, long maxStreamLength)
     {
         if (version is not Version.V3 and not Version.V4)
             throw new ArgumentException($"Unsupported version: {version}.", nameof(version));
@@ -161,8 +161,19 @@ internal sealed class CfbBinaryReader : BinaryReader
                 throw new FileFormatException($"Invalid stream ID: {entry.StartSectorId:X8}.");
         }
 
-        if (version is Version.V3 && entry.StreamLength > DirectoryEntry.MaxV3StreamLength)
-            throw new FileFormatException($"Stream length {entry.StreamLength} exceeds maximum value {DirectoryEntry.MaxV3StreamLength}.");
+        if (entry.Type is StorageType.Stream or StorageType.Root)
+        {
+            if (entry.StreamLength < 0L)
+                throw new FileFormatException("Stream length is negative.");
+
+            long maxStreamLengthForVersion = version == Version.V3 ? DirectoryEntry.MaxV3StreamLength : maxStreamLength;
+            if (entry.StreamLength > maxStreamLengthForVersion)
+                throw new FileFormatException($"Stream length {entry.StreamLength} exceeds maximum value {maxStreamLengthForVersion}.");
+        }
+        else if (entry.Type is StorageType.Storage && entry.StreamLength is not 0L && strict)
+        {
+            throw new FileFormatException("Stream length must be zero for storages.");
+        }
 
         return entry;
     }
