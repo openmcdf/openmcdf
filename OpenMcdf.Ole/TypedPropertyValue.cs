@@ -55,7 +55,7 @@ internal abstract class TypedPropertyValue<T> : ITypedPropertyValue
                     int m = size % 4;
 
                     if (m > 0 && NeedsPadding)
-                        br.ReadBytes(4 - m); // padding
+                        SkipPadding(br, 4 - m); // padding
                 }
 
                 break;
@@ -77,7 +77,7 @@ internal abstract class TypedPropertyValue<T> : ITypedPropertyValue
 
                         int pad = itemSize % 4;
                         if (pad > 0 && NeedsPadding)
-                            br.ReadBytes(4 - pad); // padding
+                            SkipPadding(br, 4 - pad); // padding
                     }
 
                     propertyValue = res;
@@ -85,7 +85,7 @@ internal abstract class TypedPropertyValue<T> : ITypedPropertyValue
 
                     int m = size % 4;
                     if (m > 0 && NeedsPadding)
-                        br.ReadBytes(4 - m); // padding
+                        SkipPadding(br, 4 - m); // padding
                 }
 
                 break;
@@ -95,6 +95,17 @@ internal abstract class TypedPropertyValue<T> : ITypedPropertyValue
 
             default:
                 break;
+        }
+
+        // Read the specified number of passing bytes. Keep this so that we know it's only doing a stack alloc of 1-3 bytes
+        static void SkipPadding(BinaryReader br, int count)
+        {
+#if NETSTANDARD2_0
+            br.ReadBytes(count);
+#else
+            Span<byte> localBuffer = stackalloc byte[count];
+            br.Read(localBuffer);
+#endif
         }
     }
 
