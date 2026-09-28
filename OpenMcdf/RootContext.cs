@@ -117,8 +117,16 @@ internal sealed class RootContext : ContextBase, IDisposable
 
         Length = stream.Length;
 
-        if (IsStrict && Length > MaxStreamLength)
-            throw new FileFormatException($"Stream length {Length} exceeds the maximum length {MaxStreamLength}.");
+        if (IsStrict)
+        {
+            if (Length > MaxStreamLength)
+                throw new FileFormatException($"Stream length {Length} exceeds the maximum length {MaxStreamLength}.");
+
+            // FAT, DIFAT, mini FAT and directory sectors are each distinct, whole sectors after the header
+            long headerSectorCount = (long)Header.FatSectorCount + Header.DifatSectorCount + Header.MiniFatSectorCount + Header.DirectorySectorCount;
+            if (headerSectorCount > SectorCount)
+                throw new FileFormatException($"The sector counts declared in the header exceed the maximum possible for the stream length.");
+        }
 
         if (contextFlags.HasFlag(IOContextFlags.Transacted))
         {
