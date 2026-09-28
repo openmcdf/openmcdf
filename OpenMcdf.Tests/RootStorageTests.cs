@@ -65,6 +65,116 @@ public sealed class RootStorageTests
     }
 
     [TestMethod]
+    [DataRow(Version.V3, 0x28)] // Directory sector count
+    [DataRow(Version.V3, 0x2C)] // FAT sector count
+    [DataRow(Version.V3, 0x40)] // Mini FAT sector count
+    [DataRow(Version.V3, 0x48)] // DIFAT sector count
+    [DataRow(Version.V4, 0x28)]
+    [DataRow(Version.V4, 0x2C)]
+    [DataRow(Version.V4, 0x40)]
+    [DataRow(Version.V4, 0x48)]
+    public void OpenWithStrictValidationThrowsWhenHeaderSectorCountsExceedStreamLength(Version version, int countOffset)
+    {
+        using MemoryStream createStream = new();
+        using (var rootStorage = RootStorage.Create(createStream, version, StorageModeFlags.LeaveOpen))
+        {
+        }
+
+        // A trailing partial sector cannot hold any sectors
+        int sectorSize = version is Version.V3 ? 512 : 4096;
+        createStream.SetLength(createStream.Length + sectorSize - 1);
+        byte[] buffer = createStream.ToArray();
+        uint sectorCount = (uint)((buffer.Length - sectorSize) / sectorSize);
+
+        uint otherSectorCount = 0;
+        foreach (int offset in (int[])[0x28, 0x2C, 0x40, 0x48])
+        {
+            if (offset != countOffset)
+                otherSectorCount += BitConverter.ToUInt32(buffer, offset);
+        }
+
+        BitConverter.GetBytes(sectorCount - otherSectorCount).CopyTo(buffer, countOffset);
+        using (var stream = new MemoryStream(buffer, writable: false))
+        {
+            using var rootStorage = RootStorage.Open(stream, StorageModeFlags.StrictValidation);
+        }
+
+        BitConverter.GetBytes(sectorCount - otherSectorCount + 1).CopyTo(buffer, countOffset);
+        using (var stream = new MemoryStream(buffer, writable: false))
+        {
+            FileFormatException exception = Assert.ThrowsExactly<FileFormatException>(() =>
+            {
+                using var rootStorage = RootStorage.Open(stream, StorageModeFlags.StrictValidation);
+            });
+            Assert.AreEqual("The sector counts declared in the header exceed the maximum possible for the stream length.", exception.Message);
+        }
+
+        using (var stream = new MemoryStream(buffer, writable: false))
+        {
+            using var rootStorage = RootStorage.Open(stream);
+        }
+    }
+
+    [TestMethod]
+    public void OpenWithStrictValidationWithDifatSectors()
+    {
+        // Enough data to require more FAT sectors than fit in the header's DIFAT array
+        const int FatEntriesPerSector = 512 / sizeof(uint);
+        byte[] data = new byte[(Header.DifatArrayLength + 1) * FatEntriesPerSector * 512];
+
+        using MemoryStream memoryStream = new();
+        using (var rootStorage = RootStorage.Create(memoryStream, Version.V3, StorageModeFlags.LeaveOpen))
+        {
+            using CfbStream stream = rootStorage.CreateStream("Test");
+            stream.Write(data, 0, data.Length);
+        }
+
+        byte[] buffer = memoryStream.ToArray();
+        Assert.AreEqual(1u, BitConverter.ToUInt32(buffer, 0x48));
+
+        using var readStream = new MemoryStream(buffer, writable: false);
+        using var readRootStorage = RootStorage.Open(readStream, StorageModeFlags.StrictValidation);
+        Assert.IsTrue(readRootStorage.Validate());
+    }
+
+    [TestMethod]
+    [DataRow(Version.V3)]
+    [DataRow(Version.V4)]
+    public void DifatChainLoopThrowsFileFormatException(Version version)
+    {
+        using MemoryStream createStream = new();
+        using (var createRootStorage = RootStorage.Create(createStream, version, StorageModeFlags.LeaveOpen))
+        {
+        }
+
+        int sectorSize = version is Version.V3 ? 512 : 4096;
+        int fatEntriesPerSector = sectorSize / sizeof(uint);
+        int difatEntriesPerSector = fatEntriesPerSector - 1;
+
+        // Append a DIFAT sector that links to itself
+        byte[] buffer = new byte[createStream.Length + sectorSize];
+        createStream.ToArray().CopyTo(buffer, 0);
+        uint difatSectorId = (uint)((createStream.Length - sectorSize) / sectorSize);
+        BitConverter.GetBytes(difatSectorId).CopyTo(buffer, buffer.Length - sizeof(uint));
+
+        BitConverter.GetBytes(uint.MaxValue).CopyTo(buffer, 0x2C); // FAT sector count
+        BitConverter.GetBytes(difatSectorId).CopyTo(buffer, 0x44); // First DIFAT sector ID
+        BitConverter.GetBytes(uint.MaxValue).CopyTo(buffer, 0x48); // DIFAT sector count
+
+        using var stream = new MemoryStream(buffer, writable: false);
+        using var rootStorage = RootStorage.Open(stream);
+        Fat fat = rootStorage.Context.Fat;
+
+        // Each DIFAT sector must be a distinct sector, so the chain can be no longer than the sector count
+        uint maxDifatSectorCount = (uint)((buffer.Length - sectorSize) / sectorSize);
+        uint GetFirstKeyForDifatIndex(uint difatIndex) => (uint)((Header.DifatArrayLength + (difatIndex * difatEntriesPerSector)) * fatEntriesPerSector);
+
+        Assert.IsTrue(fat.TryGetValue(GetFirstKeyForDifatIndex(maxDifatSectorCount - 1), out _));
+        FileFormatException exception = Assert.ThrowsExactly<FileFormatException>(() => fat.TryGetValue(GetFirstKeyForDifatIndex(maxDifatSectorCount), out _));
+        Assert.AreEqual("DIFAT chain index is greater than the maximum for the stream length.", exception.Message);
+    }
+
+    [TestMethod]
     public void OpenNonStrictWithNonZeroHeaderCLSID()
     {
         Guid expectedHeaderCLSID = Guid.Parse("00020906-0000-0000-c000-000000000046");

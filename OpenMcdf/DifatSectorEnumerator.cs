@@ -63,6 +63,8 @@ internal sealed class DifatSectorEnumerator : ContextBase, IEnumerator<Sector>
         uint nextIndex = index + 1;
         if (nextIndex >= Context.Header.DifatSectorCount)
             throw new FileFormatException("DIFAT chain index is greater than the sector count.");
+        if (nextIndex >= Context.SectorCount)
+            throw new FileFormatException("DIFAT chain index is greater than the maximum for the stream length.");
 
         current = new(difatSectorId, Context.SectorSize);
         index = nextIndex;
