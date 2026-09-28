@@ -576,6 +576,60 @@ public sealed class RootStorageTests
         Assert.ThrowsExactly<FileFormatException>(() => root.Delete("AB"));
     }
 
+    [TestMethod]
+    [DataRow(2)]
+    [DataRow(10)]
+    [DataRow(40)]
+    public void DirectoryTreeSharedSiblingThrowsFileFormatExceptionOnEnumerate(int depth)
+    {
+        // Each level has a parent P whose left sibling L and right sibling R both link to the next level's P,
+        // so without detection each nested level doubles the number of entries visited.
+        // Names must satisfy L[0] < L[1] < ... < P[n] < R[n] < ... < P[0] < R[0] to pass the local order checks.
+        static string Name(int value) => $"E{value:D4}";
+
+        using MemoryStream stream = new();
+        using (var rootStorage = RootStorage.Create(stream, Version.V3, StorageModeFlags.LeaveOpen))
+        {
+            for (int i = 0; i < 3 * depth; i++)
+                rootStorage.CreateStream(Name(i)).Dispose();
+
+            DirectoryEntries directories = rootStorage.Context.DirectoryEntries;
+            Dictionary<string, DirectoryEntry> entries = rootStorage.EnumerateDirectoryEntries().ToDictionary(e => e.NameString);
+
+            DirectoryEntry? next = null;
+            for (int level = depth - 1; level >= 0; level--)
+            {
+                int p = depth + (2 * (depth - 1 - level));
+                DirectoryEntry left = entries[Name(level)];
+                DirectoryEntry parent = entries[Name(p)];
+                DirectoryEntry right = entries[Name(p + 1)];
+
+                parent.LeftSiblingId = left.Id;
+                parent.RightSiblingId = right.Id;
+                left.LeftSiblingId = StreamId.NoStream;
+                left.RightSiblingId = next?.Id ?? StreamId.NoStream;
+                right.LeftSiblingId = next?.Id ?? StreamId.NoStream;
+                right.RightSiblingId = StreamId.NoStream;
+
+                foreach (DirectoryEntry entry in new[] { left, parent, right })
+                {
+                    entry.Color = NodeColor.Black;
+                    directories.Write(entry);
+                }
+
+                next = parent;
+            }
+
+            DirectoryEntry root = directories.RootEntry;
+            root.ChildId = next!.Id;
+            directories.Write(root);
+        }
+
+        stream.Position = 0;
+        using var reopened = RootStorage.Open(stream, StorageModeFlags.LeaveOpen);
+        Assert.ThrowsExactly<FileFormatException>(() => reopened.EnumerateEntries().ToList());
+    }
+
     sealed class LengthReportingMemoryStream : MemoryStream
     {
         readonly long length;
