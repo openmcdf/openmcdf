@@ -5,20 +5,21 @@ namespace OpenMcdf;
 /// <summary>
 /// Enumerates the children of a <see cref="DirectoryEntry"/>.
 /// </summary>
-internal sealed class DirectoryTreeEnumerator : IEnumerator<DirectoryEntry>
+internal sealed class DirectoryTreeEnumerator : ContextBase, IEnumerator<DirectoryEntry>
 {
-    private readonly DirectoryEntries directories;
     private readonly DirectoryEntry root;
     private readonly DirectoryTreeTraversalOrderValidator validator = new();
     private readonly Stack<DirectoryEntry> stack = new();
     DirectoryEntry? current;
 
-    internal DirectoryTreeEnumerator(DirectoryEntries directories, DirectoryEntry root)
+    internal DirectoryTreeEnumerator(RootContextSite rootContextSite, DirectoryEntry root)
+        : base(rootContextSite)
     {
-        this.directories = directories;
         this.root = root;
         Reset();
     }
+
+    private DirectoryEntries Directories => Context.DirectoryEntries;
 
     /// <inheritdoc/>
     public void Dispose()
@@ -56,7 +57,7 @@ internal sealed class DirectoryTreeEnumerator : IEnumerator<DirectoryEntry>
             ThrowHelper.ThrowIfInvalidBinarySearchTree(compare <= 0);
         }
 
-        DirectoryEntry? rightSibling = directories.TryGetSibling(current, SiblingType.Right, validator);
+        DirectoryEntry? rightSibling = Directories.TryGetSibling(current, SiblingType.Right, validator);
         if (rightSibling is not null)
             PushLeft(rightSibling);
 
@@ -71,7 +72,7 @@ internal sealed class DirectoryTreeEnumerator : IEnumerator<DirectoryEntry>
         validator.Reset();
         if (root.ChildId != StreamId.NoStream)
         {
-            DirectoryEntry child = directories.GetDictionaryEntry(root.ChildId);
+            DirectoryEntry child = Directories.GetDictionaryEntry(root.ChildId);
             PushLeft(child);
         }
     }
@@ -88,7 +89,7 @@ internal sealed class DirectoryTreeEnumerator : IEnumerator<DirectoryEntry>
             }
 
             stack.Push(node);
-            node = directories.TryGetSibling(node, SiblingType.Left, validator);
+            node = Directories.TryGetSibling(node, SiblingType.Left, validator);
         }
     }
 }

@@ -6,16 +6,15 @@ namespace OpenMcdf;
 /// <summary>
 /// Enumerates the <see cref="FatEntry"/> records in a <see cref="Fat"/>.
 /// </summary>
-internal sealed class FatEnumerator : IEnumerator<FatEntry>
+internal sealed class FatEnumerator : ContextBase, IEnumerator<FatEntry>
 {
-    readonly Fat fat;
     bool started = false;
     uint index = uint.MaxValue;
     uint value = uint.MaxValue;
 
-    public FatEnumerator(Fat fat)
+    public FatEnumerator(RootContextSite rootContextSite)
+        : base(rootContextSite)
     {
-        this.fat = fat;
     }
 
     /// <inheritdoc/>
@@ -60,9 +59,9 @@ internal sealed class FatEnumerator : IEnumerator<FatEntry>
         if (this.index == index)
             return true;
 
-        if (fat.TryGetValue(index, out value))
+        if (Context.Fat.TryGetValue(index, out value))
         {
-            if (value < SectorType.Maximum && value >= fat.Context.SectorCount)
+            if (value < SectorType.Maximum && value >= Context.SectorCount)
                 throw new FileFormatException($"FAT entry #{index} for sector {value} is beyond the end of the stream.");
             this.index = index;
             return true;

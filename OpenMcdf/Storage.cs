@@ -7,9 +7,9 @@ namespace OpenMcdf;
 /// </summary>
 public class Storage : ContextBase
 {
-    readonly DirectoryTree directoryTree;
-    readonly DirectoryEntry directoryEntry;
     readonly string path;
+    DirectoryTree directoryTree;
+    DirectoryEntry directoryEntry;
 
     public Storage? Parent { get; }
 
@@ -19,10 +19,19 @@ public class Storage : ContextBase
         if (directoryEntry.Type is not StorageType.Storage and not StorageType.Root)
             throw new ArgumentException("DirectoryEntry must be a Storage or Root.", nameof(directoryEntry));
 
-        directoryTree = new(Context.DirectoryEntries, directoryEntry);
+        directoryTree = new(rootContextSite, directoryEntry);
         this.directoryEntry = directoryEntry;
         Parent = parent;
         path = parent is null ? $"/" : $"{parent.path}{parent.EntryInfo.Name}/";
+    }
+
+    /// <summary>
+    /// Rebinds this storage to an equivalent <see cref="DirectoryEntry"/> owned by a new context.
+    /// </summary>
+    internal void SwitchDirectoryEntry(DirectoryEntry directoryEntry)
+    {
+        directoryTree = new(ContextSite, directoryEntry);
+        this.directoryEntry = directoryEntry;
     }
 
     /// <summary>
@@ -130,7 +139,7 @@ public class Storage : ContextBase
 
     internal IEnumerable<DirectoryEntry> EnumerateDirectoryEntries()
     {
-        using DirectoryTreeEnumerator treeEnumerator = new(Context.DirectoryEntries, directoryEntry);
+        using DirectoryTreeEnumerator treeEnumerator = new(ContextSite, directoryEntry);
         while (treeEnumerator.MoveNext())
         {
             yield return treeEnumerator.Current;
@@ -374,7 +383,7 @@ public class Storage : ContextBase
             }
             else
             {
-                using FatChainEnumerator fatChainEnumerator = new(Context.Fat, entry.StartSectorId);
+                using FatChainEnumerator fatChainEnumerator = new(ContextSite, entry.StartSectorId);
                 fatChainEnumerator.Truncate();
             }
         }

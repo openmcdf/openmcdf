@@ -15,7 +15,7 @@ internal sealed class MiniFatEnumerator : ContextBase, IEnumerator<FatEntry>
     public MiniFatEnumerator(RootContextSite rootContextSite)
         : base(rootContextSite)
     {
-        fatChainEnumerator = new(Context.Fat, Context.Header.FirstMiniFatSectorId);
+        fatChainEnumerator = new(ContextSite, Context.Header.FirstMiniFatSectorId);
     }
 
     /// <inheritdoc/>

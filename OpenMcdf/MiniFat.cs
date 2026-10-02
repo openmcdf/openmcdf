@@ -19,7 +19,7 @@ internal sealed class MiniFat : ContextBase, IEnumerable<FatEntry>, IDisposable
         : base(rootContextSite)
     {
         elementsPerSector = Context.SectorSize / sizeof(uint);
-        fatChainEnumerator = new(Context.Fat, Context.Header.FirstMiniFatSectorId);
+        fatChainEnumerator = new(ContextSite, Context.Header.FirstMiniFatSectorId);
         cachedSectorBuffer = new byte[Context.SectorSize];
     }
 

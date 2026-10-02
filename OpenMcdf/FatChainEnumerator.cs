@@ -7,9 +7,8 @@ namespace OpenMcdf;
 /// <summary>
 /// Enumerates the <see cref="Sector"/>s in a FAT sector chain.
 /// </summary>
-internal sealed class FatChainEnumerator : IEnumerator<uint>
+internal sealed class FatChainEnumerator : ContextBase, IEnumerator<uint>
 {
-    private readonly Fat fat;
     private readonly FatEnumerator fatEnumerator;
     private uint startId;
     private bool started = false;
@@ -22,12 +21,15 @@ internal sealed class FatChainEnumerator : IEnumerator<uint>
     private uint power = 1;
     private uint slow = uint.MaxValue;
 
-    public FatChainEnumerator(Fat fat, uint startSectorId)
+    public FatChainEnumerator(RootContextSite rootContextSite, uint startSectorId)
+        : base(rootContextSite)
     {
-        this.fat = fat;
         startId = startSectorId;
-        fatEnumerator = new(fat);
+        fatEnumerator = new(rootContextSite);
     }
+
+    // Resolve the FAT through the site so the chain follows the context when the root storage switches streams
+    private Fat Fat => Context.Fat;
 
     /// <inheritdoc/>
     public void Dispose()
@@ -35,7 +37,7 @@ internal sealed class FatChainEnumerator : IEnumerator<uint>
         fatEnumerator.Dispose();
     }
 
-    public Sector CurrentSector => new(current, fat.Context.SectorSize);
+    public Sector CurrentSector => new(current, Context.SectorSize);
 
     /// <inheritdoc/>
     public uint Current
@@ -74,7 +76,7 @@ internal sealed class FatChainEnumerator : IEnumerator<uint>
         if (index == uint.MaxValue)
             return false;
 
-        uint value = fat[current];
+        uint value = Fat[current];
         if (value is SectorType.EndOfChain)
         {
             index = uint.MaxValue;
@@ -86,7 +88,7 @@ internal sealed class FatChainEnumerator : IEnumerator<uint>
             throw new FileFormatException($"Invalid FAT sector ID: {value}.");
 
         index++;
-        if (index >= fat.Context.SectorCount)
+        if (index >= Context.SectorCount)
         {
             index = uint.MaxValue;
             current = uint.MaxValue;
@@ -159,7 +161,7 @@ internal sealed class FatChainEnumerator : IEnumerator<uint>
 
         if (startId == StreamId.NoStream)
         {
-            startId = fat.Add(fatEnumerator, 0);
+            startId = Fat.Add(fatEnumerator, 0);
             chainLength = 1;
         }
 
@@ -171,8 +173,8 @@ internal sealed class FatChainEnumerator : IEnumerator<uint>
         Debug.Assert(ok);
         while (chainLength < requiredChainLength)
         {
-            uint id = fat.Add(fatEnumerator, lastId);
-            fat[lastId] = id;
+            uint id = Fat.Add(fatEnumerator, lastId);
+            Fat[lastId] = id;
             lastId = id;
             chainLength++;
         }
@@ -185,7 +187,7 @@ internal sealed class FatChainEnumerator : IEnumerator<uint>
     {
         if (startId == SectorType.EndOfChain)
         {
-            startId = fat.Add(fatEnumerator, hintId);
+            startId = Fat.Add(fatEnumerator, hintId);
             return startId;
         }
 
@@ -197,8 +199,8 @@ internal sealed class FatChainEnumerator : IEnumerator<uint>
             lastId = current;
         }
 
-        uint id = fat.Add(fatEnumerator, hintId);
-        fat[lastId] = id;
+        uint id = Fat.Add(fatEnumerator, hintId);
+        Fat[lastId] = id;
         return id;
     }
 
@@ -216,15 +218,15 @@ internal sealed class FatChainEnumerator : IEnumerator<uint>
             if (!SectorType.IsFreeOrEndOfChain(lastId))
             {
                 if (index == requiredChainLength)
-                    fat[lastId] = SectorType.EndOfChain;
+                    Fat[lastId] = SectorType.EndOfChain;
                 else if (index > requiredChainLength)
-                    fat[lastId] = SectorType.Free;
+                    Fat[lastId] = SectorType.Free;
             }
 
             lastId = current;
         }
 
-        fat[lastId] = SectorType.Free;
+        Fat[lastId] = SectorType.Free;
 
         if (requiredChainLength == 0)
         {

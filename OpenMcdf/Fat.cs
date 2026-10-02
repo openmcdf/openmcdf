@@ -162,7 +162,7 @@ internal sealed class Fat : ContextBase, IEnumerable<FatEntry>, IDisposable
         return new(lastUsedSectorIndex.Index, Context.SectorSize);
     }
 
-    public IEnumerator<FatEntry> GetEnumerator() => new FatEnumerator(Context.Fat);
+    public IEnumerator<FatEntry> GetEnumerator() => new FatEnumerator(ContextSite);
 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 

@@ -21,7 +21,7 @@ internal sealed class FatStream : Stream
     {
         this.rootContextSite = rootContextSite;
         DirectoryEntry = directoryEntry;
-        chain = new(Context.Fat, directoryEntry.StartSectorId);
+        chain = new(rootContextSite, directoryEntry.StartSectorId);
     }
 
     internal DirectoryEntry DirectoryEntry { get; private set; }
