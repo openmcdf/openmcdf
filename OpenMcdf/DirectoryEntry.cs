@@ -206,28 +206,4 @@ internal sealed class DirectoryEntry : IEquatable<DirectoryEntry?>
 
     [ExcludeFromCodeCoverage]
     public override string ToString() => $"{Id}: \"{NameString}\"";
-
-    public DirectoryEntry CloneWithNoStream()
-    {
-        DirectoryEntry clone = new()
-        {
-            Id = Id,
-            NameLength = NameLength,
-            Type = Type,
-            Color = Color,
-            LeftSiblingId = LeftSiblingId,
-            RightSiblingId = RightSiblingId,
-            ChildId = ChildId,
-            CLSID = CLSID,
-            StateBits = StateBits,
-            CreationTime = CreationTime,
-            ModifiedTime = ModifiedTime,
-            StartSectorId = StreamId.NoStream,
-            StreamLength = 0,
-        };
-
-        Array.Copy(Name, clone.Name, Name.Length);
-
-        return clone;
-    }
 }

@@ -390,4 +390,86 @@ public sealed class StorageTests
             Assert.AreEqual(1U, storage.StateBits);
         }
     }
+
+    [TestMethod]
+    [DataRow(Version.V3)]
+    [DataRow(Version.V4)]
+    public void SetMetadataAfterAddingSiblingKeepsSibling(Version version)
+    {
+        using MemoryStream memoryStream = new();
+        var guid = Guid.NewGuid();
+
+        using (var rootStorage = RootStorage.Create(memoryStream, version, StorageModeFlags.LeaveOpen))
+        {
+            Storage storage = rootStorage.CreateStorage("B");
+
+            // Adding "C" links it as the right sibling of "B" while the open storage holds an older copy of its entry
+            rootStorage.CreateStorage("C");
+            storage.CLSID = guid;
+        }
+
+        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.StrictValidation))
+        {
+            Assert.IsTrue(rootStorage.Validate());
+            Assert.IsTrue(rootStorage.ContainsEntry("C"));
+            Assert.AreEqual(guid, rootStorage.OpenStorage("B").CLSID);
+        }
+    }
+
+    [TestMethod]
+    [DataRow(Version.V3)]
+    [DataRow(Version.V4)]
+    public void AddFirstChildAfterAddingSiblingKeepsSibling(Version version)
+    {
+        using MemoryStream memoryStream = new();
+
+        using (var rootStorage = RootStorage.Create(memoryStream, version, StorageModeFlags.LeaveOpen))
+        {
+            Storage storage = rootStorage.CreateStorage("B");
+            rootStorage.CreateStorage("C");
+
+            // Adding the first child writes the child ID of "B"
+            storage.CreateStorage("Child");
+        }
+
+        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.StrictValidation))
+        {
+            Assert.IsTrue(rootStorage.Validate());
+            Assert.IsTrue(rootStorage.ContainsEntry("C"));
+            Assert.IsTrue(rootStorage.OpenStorage("B").ContainsEntry("Child"));
+        }
+    }
+
+    [TestMethod]
+    [DataRow(Version.V3)]
+    [DataRow(Version.V4)]
+    public void ChildrenAreSharedBetweenOpenStorages(Version version)
+    {
+        using MemoryStream memoryStream = new();
+
+        using (var rootStorage = RootStorage.Create(memoryStream, version, StorageModeFlags.LeaveOpen))
+        {
+            rootStorage.CreateStorage("Storage");
+            Storage storage1 = rootStorage.OpenStorage("Storage");
+            Storage storage2 = rootStorage.OpenStorage("Storage");
+
+            storage1.CreateStream("A");
+            Assert.IsTrue(storage2.ContainsEntry("A"));
+            Assert.HasCount(1, storage2.EnumerateEntries());
+
+            storage2.CreateStream("B");
+            Assert.IsTrue(storage1.ContainsEntry("B"));
+
+            storage2.Delete("A");
+            Assert.IsFalse(storage1.ContainsEntry("A"));
+        }
+
+        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.StrictValidation))
+        {
+            Assert.IsTrue(rootStorage.Validate());
+            Storage storage = rootStorage.OpenStorage("Storage");
+            Assert.IsFalse(storage.ContainsEntry("A"));
+            Assert.IsTrue(storage.ContainsEntry("B"));
+        }
+    }
 }

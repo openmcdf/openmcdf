@@ -7,15 +7,15 @@ namespace OpenMcdf;
 /// </summary>
 internal sealed class DirectoryTreeEnumerator : ContextBase, IEnumerator<DirectoryEntry>
 {
-    private readonly DirectoryEntry root;
+    private readonly uint rootId;
     private readonly DirectoryTreeTraversalOrderValidator validator = new();
     private readonly Stack<DirectoryEntry> stack = new();
     DirectoryEntry? current;
 
-    internal DirectoryTreeEnumerator(RootContextSite rootContextSite, DirectoryEntry root)
+    internal DirectoryTreeEnumerator(RootContextSite rootContextSite, uint rootId)
         : base(rootContextSite)
     {
-        this.root = root;
+        this.rootId = rootId;
         Reset();
     }
 
@@ -70,6 +70,7 @@ internal sealed class DirectoryTreeEnumerator : ContextBase, IEnumerator<Directo
         current = null;
         stack.Clear();
         validator.Reset();
+        DirectoryEntry root = Directories.GetDictionaryEntry(rootId);
         if (root.ChildId != StreamId.NoStream)
         {
             DirectoryEntry child = Directories.GetDictionaryEntry(root.ChildId);

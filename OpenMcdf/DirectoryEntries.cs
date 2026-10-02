@@ -16,8 +16,6 @@ internal sealed class DirectoryEntries : ContextBase, IDisposable
     private readonly FatChainEnumerator fatChainEnumerator;
     private readonly DirectoryEntryEnumerator directoryEntryEnumerator;
 
-    public DirectoryEntry RootEntry { get; }
-
     public DirectoryEntries(RootContextSite rootContextSite, bool create)
         : base(rootContextSite)
     {
@@ -26,16 +24,17 @@ internal sealed class DirectoryEntries : ContextBase, IDisposable
 
         if (create)
         {
-            RootEntry = CreateOrRecycleDirectoryEntry();
-            RootEntry.RecycleRoot();
+            DirectoryEntry rootEntry = CreateOrRecycleDirectoryEntry();
+            rootEntry.RecycleRoot();
+            Write(rootEntry);
         }
         else
         {
-            RootEntry = GetDictionaryEntry(0);
+            DirectoryEntry rootEntry = GetRootEntry();
 
             // MS-CFB states the root storage object must be black, but the Windows Structured Storage implementation is red
 #if false
-            if (Context.IsStrict && RootEntry.Color is not NodeColor.Black)
+            if (Context.IsStrict && rootEntry.Color is not NodeColor.Black)
                 throw new FileFormatException("Root child is not black.");
 #endif
         }
@@ -59,6 +58,11 @@ internal sealed class DirectoryEntries : ContextBase, IDisposable
             ThrowHelper.ThrowDirectoryEntryNotFound(streamId);
         return entry;
     }
+
+    /// <summary>
+    /// Gets the <see cref="DirectoryEntry"/> for the root storage.
+    /// </summary>
+    public DirectoryEntry GetRootEntry() => GetDictionaryEntry(StreamId.Root);
 
     public bool TryGetDictionaryEntry(uint streamId, bool throwIfNotFound, [MaybeNullWhen(false)] out DirectoryEntry entry)
     {
@@ -158,6 +162,18 @@ internal sealed class DirectoryEntries : ContextBase, IDisposable
         writer.Write(entry);
     }
 
+    /// <summary>
+    /// Updates the start sector and length of a stream, keeping the other fields of its <see cref="DirectoryEntry"/>,
+    /// since adding or removing entries changes them.
+    /// </summary>
+    public void UpdateDirectoryEntry(uint streamId, uint startSectorId, long length)
+    {
+        DirectoryEntry entry = GetDictionaryEntry(streamId);
+        entry.StartSectorId = startSectorId;
+        entry.StreamLength = length;
+        Write(entry);
+    }
+
     [ExcludeFromCodeCoverage]
     public IEnumerable<DirectoryEntry> Enumerate()
     {
@@ -178,14 +194,14 @@ internal sealed class DirectoryEntries : ContextBase, IDisposable
     [ExcludeFromCodeCoverage]
     public void Validate()
     {
-        DirectoryTree tree = new(ContextSite, RootEntry);
+        DirectoryTree tree = new(ContextSite, StreamId.Root);
         tree.Validate();
     }
 
     [ExcludeFromCodeCoverage]
     public void WriteTrace(TextWriter writer)
     {
-        DirectoryTree tree = new(ContextSite, RootEntry);
+        DirectoryTree tree = new(ContextSite, StreamId.Root);
         tree.WriteTrace(writer);
     }
 }

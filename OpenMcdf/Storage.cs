@@ -8,8 +8,8 @@ namespace OpenMcdf;
 public class Storage : ContextBase
 {
     readonly string path;
-    DirectoryTree directoryTree;
-    DirectoryEntry directoryEntry;
+    readonly DirectoryTree directoryTree;
+    readonly uint directoryEntryId;
 
     public Storage? Parent { get; }
 
@@ -19,25 +19,28 @@ public class Storage : ContextBase
         if (directoryEntry.Type is not StorageType.Storage and not StorageType.Root)
             throw new ArgumentException("DirectoryEntry must be a Storage or Root.", nameof(directoryEntry));
 
-        directoryTree = new(rootContextSite, directoryEntry);
-        this.directoryEntry = directoryEntry;
+        directoryTree = new(rootContextSite, directoryEntry.Id);
+        directoryEntryId = directoryEntry.Id;
         Parent = parent;
         path = parent is null ? $"/" : $"{parent.path}{parent.EntryInfo.Name}/";
     }
 
-    /// <summary>
-    /// Rebinds this storage to an equivalent <see cref="DirectoryEntry"/> owned by a new context.
-    /// </summary>
-    internal void SwitchDirectoryEntry(DirectoryEntry directoryEntry)
+    // Read the entry on each use, since adding or removing siblings and children changes it
+    DirectoryEntry GetDirectoryEntry() => Context.DirectoryEntries.GetDictionaryEntry(directoryEntryId);
+
+    void UpdateDirectoryEntry(Action<DirectoryEntry> update)
     {
-        directoryTree = new(ContextSite, directoryEntry);
-        this.directoryEntry = directoryEntry;
+        Context.ThrowIfNotWritable();
+
+        DirectoryEntry entry = GetDirectoryEntry();
+        update(entry);
+        Context.DirectoryEntries.Write(entry);
     }
 
     /// <summary>
     /// Gets metadata about this storage entry.
     /// </summary>
-    public EntryInfo EntryInfo => directoryEntry.ToEntryInfo(path);
+    public EntryInfo EntryInfo => GetDirectoryEntry().ToEntryInfo(path);
 
     [Obsolete("Use CLSID instead.")]
     public Guid CLISD
@@ -48,14 +51,8 @@ public class Storage : ContextBase
 
     public Guid CLSID
     {
-        get => directoryEntry.CLSID;
-        set
-        {
-            Context.ThrowIfNotWritable();
-
-            directoryEntry.CLSID = value;
-            Context.DirectoryEntries.Write(directoryEntry);
-        }
+        get => GetDirectoryEntry().CLSID;
+        set => UpdateDirectoryEntry(entry => entry.CLSID = value);
     }
 
     /// <summary>
@@ -73,15 +70,13 @@ public class Storage : ContextBase
 
     public ulong CreationFileTime
     {
-        get => directoryEntry.CreationTime;
-        set
+        get => GetDirectoryEntry().CreationTime;
+        set => UpdateDirectoryEntry(entry =>
         {
-            Context.ThrowIfNotWritable();
-            if (directoryEntry.Type is StorageType.Root && value != 0)
+            if (entry.Type is StorageType.Root && value != 0)
                 throw new ArgumentException("Creation time must be zero for the root storage.", nameof(value));
-            directoryEntry.CreationTime = value;
-            Context.DirectoryEntries.Write(directoryEntry);
-        }
+            entry.CreationTime = value;
+        });
     }
 
     /// <summary>
@@ -99,13 +94,8 @@ public class Storage : ContextBase
 
     public ulong ModifiedFileTime
     {
-        get => directoryEntry.ModifiedTime;
-        set
-        {
-            Context.ThrowIfNotWritable();
-            directoryEntry.ModifiedTime = value;
-            Context.DirectoryEntries.Write(directoryEntry);
-        }
+        get => GetDirectoryEntry().ModifiedTime;
+        set => UpdateDirectoryEntry(entry => entry.ModifiedTime = value);
     }
 
     /// <summary>
@@ -113,14 +103,8 @@ public class Storage : ContextBase
     /// </summary>
     public uint StateBits
     {
-        get => directoryEntry.StateBits;
-        set
-        {
-            Context.ThrowIfNotWritable();
-
-            directoryEntry.StateBits = value;
-            Context.DirectoryEntries.Write(directoryEntry);
-        }
+        get => GetDirectoryEntry().StateBits;
+        set => UpdateDirectoryEntry(entry => entry.StateBits = value);
     }
 
     /// <summary>
@@ -139,7 +123,7 @@ public class Storage : ContextBase
 
     internal IEnumerable<DirectoryEntry> EnumerateDirectoryEntries()
     {
-        using DirectoryTreeEnumerator treeEnumerator = new(ContextSite, directoryEntry);
+        using DirectoryTreeEnumerator treeEnumerator = new(ContextSite, directoryEntryId);
         while (treeEnumerator.MoveNext())
         {
             yield return treeEnumerator.Current;
@@ -393,7 +377,7 @@ public class Storage : ContextBase
 
     bool TryDeleteFirstChildEntry()
     {
-        bool found = Context.DirectoryEntries.TryGetDictionaryEntry(directoryEntry.ChildId, true, out DirectoryEntry? childEntry);
+        bool found = Context.DirectoryEntries.TryGetDictionaryEntry(GetDirectoryEntry().ChildId, true, out DirectoryEntry? childEntry);
         if (childEntry is not null)
             DeleteEntry(childEntry);
         return found;

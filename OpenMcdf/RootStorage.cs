@@ -280,7 +280,7 @@ public sealed class RootStorage : Storage, IDisposable
     }
 
     RootStorage(RootContextSite rootContextSite, StorageModeFlags storageModeFlags)
-        : base(rootContextSite, rootContextSite.Context.DirectoryEntries.RootEntry, null)
+        : base(rootContextSite, rootContextSite.Context.DirectoryEntries.GetRootEntry(), null)
     {
         this.storageModeFlags = storageModeFlags;
     }
@@ -355,7 +355,7 @@ public sealed class RootStorage : Storage, IDisposable
             destinationStream.CopyAllTo(baseStream);
 
             IOContextFlags contextFlags = ToIOContextFlags(storageModeFlags);
-            SwitchContext(baseStream, contextFlags);
+            _ = new RootContext(ContextSite, baseStream, Version.Unknown, contextFlags);
         }
         finally
         {
@@ -398,16 +398,10 @@ public sealed class RootStorage : Storage, IDisposable
         IOContextFlags contextFlags = ToIOContextFlags(storageModeFlags);
         if (!allowLeaveOpen)
             contextFlags &= ~IOContextFlags.LeaveOpen;
-        SwitchContext(stream, contextFlags);
-    }
 
-    private void SwitchContext(Stream stream, IOContextFlags contextFlags)
-    {
         // Open storages and streams resolve the FAT, mini FAT and directory entries through the site,
-        // so they follow the new context. Only the root entry is owned by the context, so rebind it
-        // to the one the new mini stream will update.
+        // so they follow the new context.
         _ = new RootContext(ContextSite, stream, Version.Unknown, contextFlags);
-        SwitchDirectoryEntry(Context.DirectoryEntries.RootEntry);
     }
 
     /// <summary>

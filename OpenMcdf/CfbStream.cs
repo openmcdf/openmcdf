@@ -6,7 +6,7 @@
 public sealed class CfbStream : Stream
 {
     private readonly RootContextSite rootContextSite;
-    private readonly DirectoryEntry directoryEntry;
+    private readonly uint directoryEntryId;
     private Stream stream;
     private bool isDisposed;
 
@@ -15,7 +15,7 @@ public sealed class CfbStream : Stream
     internal CfbStream(RootContextSite rootContextSite, DirectoryEntry directoryEntry, Storage parent)
     {
         this.rootContextSite = rootContextSite;
-        this.directoryEntry = directoryEntry;
+        directoryEntryId = directoryEntry.Id;
         Parent = parent;
         stream = directoryEntry.StreamLength < Header.MiniStreamCutoffSize
             ? new MiniFatStream(rootContextSite, directoryEntry)
@@ -47,7 +47,9 @@ public sealed class CfbStream : Stream
         {
             EntryInfo parentEntryInfo = Parent.EntryInfo;
             string path = $"{parentEntryInfo.Path}{parentEntryInfo.Name}";
-            return directoryEntry.ToEntryInfo(path);
+            DirectoryEntry entry = rootContextSite.Context.DirectoryEntries.GetDictionaryEntry(directoryEntryId);
+            entry.StreamLength = stream.Length; // The stream may not have been flushed yet
+            return entry.ToEntryInfo(path);
         }
     }
 

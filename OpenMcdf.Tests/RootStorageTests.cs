@@ -696,7 +696,7 @@ public sealed class RootStorageTests
                 next = parent;
             }
 
-            DirectoryEntry root = directories.RootEntry;
+            DirectoryEntry root = directories.GetRootEntry();
             root.ChildId = next!.Id;
             directories.Write(root);
         }
