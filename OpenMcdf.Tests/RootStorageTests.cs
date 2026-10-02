@@ -347,6 +347,82 @@ public sealed class RootStorageTests
     }
 
     [TestMethod]
+    [DataRow(Version.V3, false)]
+    [DataRow(Version.V3, true)]
+    [DataRow(Version.V4, false)]
+    [DataRow(Version.V4, true)]
+    public void SwitchToWithOpenObjects(Version version, bool transacted)
+    {
+        byte[] miniData = TestData.CreateByteArray(1024);
+        byte[] fatData = TestData.CreateByteArray(16 * 1024);
+        StorageModeFlags flags = StorageModeFlags.LeaveOpen | (transacted ? StorageModeFlags.Transacted : StorageModeFlags.None);
+
+        using MemoryStream originalMemoryStream = new();
+        using MemoryStream switchedMemoryStream = new();
+        Guid clsid = Guid.NewGuid();
+        using (var rootStorage = RootStorage.Create(originalMemoryStream, version, flags))
+        {
+            // Create all siblings before opening the objects held across the switch,
+            // so their directory entries are not stale for reasons unrelated to switching
+            Storage streams = rootStorage.CreateStorage("Streams");
+            using (CfbStream stream = streams.CreateStream("MiniStream"))
+                stream.Write(miniData, 0, miniData.Length);
+            using (CfbStream stream = streams.CreateStream("FatStream"))
+                stream.Write(fatData, 0, fatData.Length);
+            rootStorage.CreateStorage("Storage");
+
+            streams = rootStorage.OpenStorage("Streams");
+            Storage storage = rootStorage.OpenStorage("Storage");
+            using CfbStream miniStream = streams.OpenStream("MiniStream");
+            using CfbStream fatStream = streams.OpenStream("FatStream");
+            miniStream.Seek(0, SeekOrigin.End);
+            fatStream.Seek(0, SeekOrigin.End);
+
+            rootStorage.SwitchTo(switchedMemoryStream);
+
+            // Extend the FAT chain, mini FAT chain, mini stream and directory through objects opened before the switch
+            miniStream.Write(miniData, 0, miniData.Length);
+            fatStream.Write(fatData, 0, fatData.Length);
+            storage.CreateStorage("Child");
+            using (CfbStream newMiniStream = rootStorage.CreateStream("NewMiniStream"))
+                newMiniStream.Write(miniData, 0, miniData.Length);
+
+            // Writes the root entry, which must reflect the mini stream growth since the switch
+            rootStorage.CLSID = clsid;
+
+            miniStream.Flush();
+            fatStream.Flush();
+            if (transacted)
+                rootStorage.Commit();
+        }
+
+        using (var rootStorage = RootStorage.Open(switchedMemoryStream, StorageModeFlags.StrictValidation))
+        {
+            Assert.IsTrue(rootStorage.Validate());
+
+            Assert.AreEqual(clsid, rootStorage.CLSID);
+            Assert.IsTrue(rootStorage.OpenStorage("Storage").ContainsEntry("Child"));
+
+            Storage streams = rootStorage.OpenStorage("Streams");
+            using (CfbStream miniStream = streams.OpenStream("MiniStream"))
+                CollectionAssert.AreEqual(miniData.Concat(miniData).ToArray(), ReadAll(miniStream));
+
+            using (CfbStream fatStream = streams.OpenStream("FatStream"))
+                CollectionAssert.AreEqual(fatData.Concat(fatData).ToArray(), ReadAll(fatStream));
+
+            using (CfbStream newMiniStream = rootStorage.OpenStream("NewMiniStream"))
+                CollectionAssert.AreEqual(miniData, ReadAll(newMiniStream));
+        }
+
+        static byte[] ReadAll(Stream stream)
+        {
+            using MemoryStream memoryStream = new();
+            stream.CopyTo(memoryStream);
+            return memoryStream.ToArray();
+        }
+    }
+
+    [TestMethod]
     public void OpenReadOnlyTransactedStreamThrows()
     {
         string fileName = $"{nameof(OpenReadOnlyTransactedStreamThrows)}.cfs";
