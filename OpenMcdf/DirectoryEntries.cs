@@ -21,7 +21,7 @@ internal sealed class DirectoryEntries : ContextBase, IDisposable
     public DirectoryEntries(RootContextSite rootContextSite, bool create)
         : base(rootContextSite)
     {
-        fatChainEnumerator = new FatChainEnumerator(Context.Fat, Context.Header.FirstDirectorySectorId);
+        fatChainEnumerator = new FatChainEnumerator(ContextSite, Context.Header.FirstDirectorySectorId);
         directoryEntryEnumerator = new DirectoryEntryEnumerator(this);
 
         if (create)
@@ -178,14 +178,14 @@ internal sealed class DirectoryEntries : ContextBase, IDisposable
     [ExcludeFromCodeCoverage]
     public void Validate()
     {
-        DirectoryTree tree = new(this, RootEntry);
+        DirectoryTree tree = new(ContextSite, RootEntry);
         tree.Validate();
     }
 
     [ExcludeFromCodeCoverage]
     public void WriteTrace(TextWriter writer)
     {
-        DirectoryTree tree = new(this, RootEntry);
+        DirectoryTree tree = new(ContextSite, RootEntry);
         tree.WriteTrace(writer);
     }
 }
