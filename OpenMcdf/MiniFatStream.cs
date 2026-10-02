@@ -6,23 +6,31 @@
 internal sealed class MiniFatStream : Stream
 {
     readonly RootContextSite rootContextSite;
+    readonly uint directoryEntryId;
     readonly MiniFatChainEnumerator miniChain;
+    uint startSectorId;
+    long length;
     long position;
     bool isDisposed;
     bool isDirectoryEntryDirty;
 
     internal MiniFatStream(RootContextSite rootContextSite, DirectoryEntry directoryEntry)
+        : this(rootContextSite, directoryEntry.Id, directoryEntry.StartSectorId, directoryEntry.StreamLength)
+    {
+    }
+
+    internal MiniFatStream(RootContextSite rootContextSite, uint directoryEntryId, uint startSectorId, long length)
     {
         this.rootContextSite = rootContextSite;
-        DirectoryEntry = directoryEntry;
-        miniChain = new(rootContextSite, directoryEntry.StartSectorId);
+        this.directoryEntryId = directoryEntryId;
+        this.startSectorId = startSectorId;
+        this.length = length;
+        miniChain = new(rootContextSite, startSectorId);
     }
 
     RootContext Context => rootContextSite.Context;
 
     long MaxStreamLength => Context.MaxStreamLength;
-
-    internal DirectoryEntry DirectoryEntry { get; private set; }
 
     internal long ChainCapacity => ((Length + Context.MiniSectorSize - 1) / Context.MiniSectorSize) * Context.MiniSectorSize;
 
@@ -32,7 +40,7 @@ internal sealed class MiniFatStream : Stream
 
     public override bool CanWrite => !isDisposed && Context.CanWrite;
 
-    public override long Length => DirectoryEntry.StreamLength;
+    public override long Length => length;
 
     public override long Position
     {
@@ -64,7 +72,7 @@ internal sealed class MiniFatStream : Stream
 
         if (isDirectoryEntryDirty)
         {
-            Context.DirectoryEntries.Write(DirectoryEntry);
+            Context.DirectoryEntries.UpdateDirectoryEntry(directoryEntryId, startSectorId, length);
             isDirectoryEntryDirty = false;
         }
 
@@ -79,8 +87,7 @@ internal sealed class MiniFatStream : Stream
 
         try
         {
-            DirectoryEntry newDirectoryEntry = DirectoryEntry.CloneWithNoStream();
-            fatStream = new(rootContextSite, newDirectoryEntry);
+            fatStream = new(rootContextSite, directoryEntryId, StreamId.NoStream, 0);
             fatStream.SetLength(length);
 
             Position = 0;
@@ -176,11 +183,11 @@ internal sealed class MiniFatStream : Stream
 
         uint requiredChainLength = (uint)((value + Context.MiniSectorSize - 1) / Context.MiniSectorSize);
         if (value > ChainCapacity)
-            DirectoryEntry.StartSectorId = miniChain.Extend(requiredChainLength);
+            startSectorId = miniChain.Extend(requiredChainLength);
         else if (value <= ChainCapacity - Context.MiniSectorSize)
-            DirectoryEntry.StartSectorId = miniChain.Shrink(requiredChainLength);
+            startSectorId = miniChain.Shrink(requiredChainLength);
 
-        DirectoryEntry.StreamLength = value;
+        length = value;
         isDirectoryEntryDirty = true;
     }
 
@@ -214,7 +221,7 @@ internal sealed class MiniFatStream : Stream
             writeCount += (int)writeLength;
             if (position > Length)
             {
-                DirectoryEntry.StreamLength = position;
+                length = position;
                 isDirectoryEntryDirty = true;
             }
             sectorOffset = 0;
@@ -301,7 +308,7 @@ internal sealed class MiniFatStream : Stream
             writeCount += (int)writeLength;
             if (position > Length)
             {
-                DirectoryEntry.StreamLength = position;
+                length = position;
                 isDirectoryEntryDirty = true;
             }
             sectorOffset = 0;

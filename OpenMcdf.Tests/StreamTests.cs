@@ -699,4 +699,63 @@ public sealed class StreamTests
         stream.Position = length;
         Assert.Throws<IOException>(() => stream.WriteByte(0));
     }
+
+    [TestMethod]
+    [DataRow(Version.V3, 1024)]
+    [DataRow(Version.V3, 16 * 1024)]
+    [DataRow(Version.V4, 1024)]
+    [DataRow(Version.V4, 16 * 1024)]
+    public void FlushAfterAddingSiblingKeepsSibling(Version version, int length)
+    {
+        byte[] data = TestData.CreateByteArray(length);
+
+        using MemoryStream memoryStream = new();
+        using (var rootStorage = RootStorage.Create(memoryStream, version, StorageModeFlags.LeaveOpen))
+        {
+            using CfbStream stream = rootStorage.CreateStream("B");
+            stream.Write(data, 0, data.Length);
+
+            // Adding "C" links it as the right sibling of "B" while the open stream holds an older copy of its entry
+            rootStorage.CreateStream("C");
+            stream.Write(data, 0, data.Length);
+        }
+
+        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.StrictValidation))
+        {
+            Assert.IsTrue(rootStorage.Validate());
+            Assert.IsTrue(rootStorage.ContainsEntry("C"));
+            using CfbStream stream = rootStorage.OpenStream("B");
+            Assert.AreEqual(2L * length, stream.Length);
+        }
+    }
+
+    [TestMethod]
+    [DataRow(Version.V3, 1024)]
+    [DataRow(Version.V3, 16 * 1024)]
+    [DataRow(Version.V4, 1024)]
+    [DataRow(Version.V4, 16 * 1024)]
+    public void FlushAfterDeletingSiblingDoesNotRestoreSibling(Version version, int length)
+    {
+        byte[] data = TestData.CreateByteArray(length);
+
+        using MemoryStream memoryStream = new();
+        using (var rootStorage = RootStorage.Create(memoryStream, version, StorageModeFlags.LeaveOpen))
+        {
+            rootStorage.CreateStream("B");
+            rootStorage.CreateStream("C");
+
+            using CfbStream stream = rootStorage.OpenStream("B");
+            stream.Write(data, 0, data.Length);
+
+            rootStorage.Delete("C");
+            stream.Write(data, 0, data.Length);
+        }
+
+        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.StrictValidation))
+        {
+            Assert.IsTrue(rootStorage.Validate());
+            Assert.IsFalse(rootStorage.ContainsEntry("C"));
+            Assert.HasCount(1, rootStorage.EnumerateEntries());
+        }
+    }
 }

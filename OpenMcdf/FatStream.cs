@@ -8,7 +8,10 @@ namespace OpenMcdf;
 internal sealed class FatStream : Stream
 {
     readonly RootContextSite rootContextSite;
+    readonly uint directoryEntryId;
     readonly FatChainEnumerator chain;
+    uint startSectorId;
+    long length;
     long position;
     bool isDirectoryEntryDirty;
     bool isDisposed;
@@ -18,13 +21,18 @@ internal sealed class FatStream : Stream
     private long MaxStreamLength => Context.MaxStreamLength;
 
     internal FatStream(RootContextSite rootContextSite, DirectoryEntry directoryEntry)
+        : this(rootContextSite, directoryEntry.Id, directoryEntry.StartSectorId, directoryEntry.StreamLength)
     {
-        this.rootContextSite = rootContextSite;
-        DirectoryEntry = directoryEntry;
-        chain = new(rootContextSite, directoryEntry.StartSectorId);
     }
 
-    internal DirectoryEntry DirectoryEntry { get; private set; }
+    internal FatStream(RootContextSite rootContextSite, uint directoryEntryId, uint startSectorId, long length)
+    {
+        this.rootContextSite = rootContextSite;
+        this.directoryEntryId = directoryEntryId;
+        this.startSectorId = startSectorId;
+        this.length = length;
+        chain = new(rootContextSite, startSectorId);
+    }
 
     internal long ChainCapacity => ((Length + Context.SectorSize - 1) / Context.SectorSize) * Context.SectorSize;
 
@@ -38,7 +46,7 @@ internal sealed class FatStream : Stream
     public override bool CanWrite => !isDisposed && Context.CanWrite;
 
     /// <inheritdoc/>
-    public override long Length => DirectoryEntry.StreamLength;
+    public override long Length => length;
 
     /// <inheritdoc/>
     public override long Position
@@ -73,7 +81,7 @@ internal sealed class FatStream : Stream
 
         if (isDirectoryEntryDirty)
         {
-            Context.DirectoryEntries.Write(DirectoryEntry);
+            Context.DirectoryEntries.UpdateDirectoryEntry(directoryEntryId, startSectorId, length);
             isDirectoryEntryDirty = false;
         }
 
@@ -89,8 +97,7 @@ internal sealed class FatStream : Stream
 
         try
         {
-            DirectoryEntry newDirectoryEntry = DirectoryEntry.CloneWithNoStream();
-            miniFatStream = new(rootContextSite, newDirectoryEntry);
+            miniFatStream = new(rootContextSite, directoryEntryId, StreamId.NoStream, 0);
             miniFatStream.SetLength(length);
 
             SetLength(length); // Truncate the stream
@@ -187,11 +194,11 @@ internal sealed class FatStream : Stream
 
         uint requiredChainLength = (uint)((value + Context.SectorSize - 1) / Context.SectorSize);
         if (value > ChainCapacity)
-            DirectoryEntry.StartSectorId = chain.Extend(requiredChainLength);
+            startSectorId = chain.Extend(requiredChainLength);
         else if (value <= ChainCapacity - Context.SectorSize)
-            DirectoryEntry.StartSectorId = chain.Shrink(requiredChainLength);
+            startSectorId = chain.Shrink(requiredChainLength);
 
-        DirectoryEntry.StreamLength = value;
+        length = value;
         isDirectoryEntryDirty = true;
     }
 
@@ -229,7 +236,7 @@ internal sealed class FatStream : Stream
 
         if (position > Length)
         {
-            DirectoryEntry.StreamLength = position;
+            length = position;
             isDirectoryEntryDirty = true;
         }
     }
@@ -311,7 +318,7 @@ internal sealed class FatStream : Stream
 
         if (position > Length)
         {
-            DirectoryEntry.StreamLength = position;
+            length = position;
             isDirectoryEntryDirty = true;
         }
     }

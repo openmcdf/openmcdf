@@ -14,19 +14,22 @@ internal sealed class DirectoryTree : ContextBase
         Root,
     }
 
-    private readonly DirectoryEntry root;
+    private readonly uint rootId;
 
-    public DirectoryTree(RootContextSite rootContextSite, DirectoryEntry root)
+    public DirectoryTree(RootContextSite rootContextSite, uint rootId)
         : base(rootContextSite)
     {
-        this.root = root;
+        this.rootId = rootId;
     }
 
     private DirectoryEntries Directories => Context.DirectoryEntries;
 
+    // Read the root on each use, since other storages or streams may have changed it
+    private DirectoryEntry GetRoot() => Directories.GetDictionaryEntry(rootId);
+
     public bool TryGetDirectoryEntry(string name, [MaybeNullWhen(false)] out DirectoryEntry entry)
     {
-        if (!Directories.TryGetDictionaryEntry(root.ChildId, true, out DirectoryEntry? child))
+        if (!Directories.TryGetDictionaryEntry(GetRoot().ChildId, true, out DirectoryEntry? child))
         {
             entry = null;
             return false;
@@ -60,6 +63,7 @@ internal sealed class DirectoryTree : ContextBase
 
     bool TryGetParent(DirectoryEntry entry, [MaybeNullWhen(false)] out DirectoryEntry parent, out RelationType relation)
     {
+        DirectoryEntry root = GetRoot();
         if (!Directories.TryGetDictionaryEntry(root.ChildId, true, out DirectoryEntry? child))
         {
             parent = null;
@@ -96,6 +100,7 @@ internal sealed class DirectoryTree : ContextBase
 
     public void Add(DirectoryEntry entry)
     {
+        DirectoryEntry root = GetRoot();
         if (!Directories.TryGetDictionaryEntry(root.ChildId, true, out DirectoryEntry? currentEntry))
         {
             root.ChildId = entry.Id;
@@ -151,7 +156,7 @@ internal sealed class DirectoryTree : ContextBase
                 entry.RightSiblingId = value;
                 break;
             case RelationType.Root:
-                root.ChildId = value;
+                entry.ChildId = value;
                 break;
         }
     }
@@ -188,7 +193,7 @@ internal sealed class DirectoryTree : ContextBase
     [ExcludeFromCodeCoverage]
     internal void Validate()
     {
-        if (Directories.TryGetDictionaryEntry(root.ChildId, true, out DirectoryEntry? child))
+        if (Directories.TryGetDictionaryEntry(GetRoot().ChildId, true, out DirectoryEntry? child))
         {
             DirectoryTreeTraversalOrderValidator validator = new();
             Validate(child, validator);
@@ -217,7 +222,7 @@ internal sealed class DirectoryTree : ContextBase
     [ExcludeFromCodeCoverage]
     internal void WriteTrace(TextWriter writer)
     {
-        if (Directories.TryGetDictionaryEntry(root.ChildId, true, out DirectoryEntry? child))
+        if (Directories.TryGetDictionaryEntry(GetRoot().ChildId, true, out DirectoryEntry? child))
             WriteTrace(writer, child, 0);
     }
 

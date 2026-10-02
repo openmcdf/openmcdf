@@ -60,7 +60,7 @@ internal sealed class RootContext : ContextBase, IDisposable
     {
         get
         {
-            miniStream ??= new(ContextSite, DirectoryEntries.RootEntry);
+            miniStream ??= new(ContextSite, DirectoryEntries.GetRootEntry());
             return miniStream;
         }
     }
@@ -147,14 +147,9 @@ internal sealed class RootContext : ContextBase, IDisposable
         DirectoryEntries = new(ContextSite, create);
 
         if (create)
-        {
             WriteHeader();
-            DirectoryEntries.Write(DirectoryEntries.RootEntry);
-        }
         else
-        {
             lastFlushedHeader = Header.Clone();
-        }
     }
 
     public void Dispose()

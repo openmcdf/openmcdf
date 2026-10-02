@@ -5,6 +5,7 @@
 /// </summary>
 internal static class StreamId
 {
+    public const uint Root = 0;
     public const uint Maximum = 0xFFFFFFFA;
     public const uint NoStream = 0xFFFFFFFF;
 
