@@ -1,0 +1,12 @@
+{
+    "dotnet.defaultSolution": "OpenMcdf.slnx",
+    "editor.rulers": [
+        120
+    ],
+    "search.exclude": {
+        "**/artifacts": true,
+        "**/TestResults": true,
+        "**/bin": true,
+        "**/obj": true
+    }
+}
