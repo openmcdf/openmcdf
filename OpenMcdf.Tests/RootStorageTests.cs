@@ -1,5 +1,6 @@
 ﻿using Microsoft.IO;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.ExceptionServices;
 
 namespace OpenMcdf.Tests;
 
@@ -760,6 +761,212 @@ public sealed class RootStorageTests
         using MemoryStream stream = TestData.CreateMemoryStreamFromFile("DirectoryTreeCycle.cfb");
         using var root = RootStorage.Open(stream, StorageModeFlags.StrictValidation);
         Assert.ThrowsExactly<FileFormatException>(() => root.Delete("AB"));
+    }
+
+    static MemoryStream CreateStorageCycle(Version version, bool linkToSelf)
+    {
+        MemoryStream stream = new();
+        using (var rootStorage = RootStorage.Create(stream, version, StorageModeFlags.LeaveOpen))
+        {
+            Storage a = rootStorage.CreateStorage("A");
+            a.CreateStorage("B");
+
+            // Link the children of "B" (or "A") back to "A"
+            DirectoryEntries directories = rootStorage.Context.DirectoryEntries;
+            DirectoryEntry entryA = rootStorage.EnumerateDirectoryEntries().Single();
+            DirectoryEntry entry = linkToSelf ? entryA : a.EnumerateDirectoryEntries().Single();
+            entry.ChildId = entryA.Id;
+            directories.Write(entry);
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
+    [TestMethod]
+    [DataRow(Version.V3, false)]
+    [DataRow(Version.V3, true)]
+    [DataRow(Version.V4, false)]
+    [DataRow(Version.V4, true)]
+    public void StorageCycleThrowsFileFormatExceptionOnCopyTo(Version version, bool linkToSelf)
+    {
+        using MemoryStream stream = CreateStorageCycle(version, linkToSelf);
+        using var root = RootStorage.Open(stream, StorageModeFlags.StrictValidation);
+        using var destination = RootStorage.CreateInMemory(version);
+        Assert.ThrowsExactly<FileFormatException>(() => root.CopyTo(destination));
+    }
+
+    [TestMethod]
+    [DataRow(Version.V3, false)]
+    [DataRow(Version.V3, true)]
+    [DataRow(Version.V4, false)]
+    [DataRow(Version.V4, true)]
+    public void StorageCycleThrowsFileFormatExceptionOnDelete(Version version, bool linkToSelf)
+    {
+        using MemoryStream stream = CreateStorageCycle(version, linkToSelf);
+        using var root = RootStorage.Open(stream, StorageModeFlags.StrictValidation);
+        Assert.ThrowsExactly<FileFormatException>(() => root.Delete("A"));
+    }
+
+    [TestMethod]
+    [DataRow(Version.V3)]
+    [DataRow(Version.V4)]
+    public void StorageCycleThrowsFileFormatExceptionOnOpen(Version version)
+    {
+        using MemoryStream stream = CreateStorageCycle(version, false);
+        using var root = RootStorage.Open(stream, StorageModeFlags.StrictValidation);
+        Storage b = root.OpenStorage("A").OpenStorage("B");
+        Assert.ThrowsExactly<FileFormatException>(() => b.OpenStorage("A"));
+    }
+
+    const int StorageChainDepth = 1000;
+
+    static string StorageChainName(int value) => $"S{value:D4}";
+
+    // Nests storages S0000/S0001/..., optionally linking the children of the last back to the first
+    static MemoryStream CreateStorageChain(Version version, bool cyclic)
+    {
+        MemoryStream stream = new();
+        using (var rootStorage = RootStorage.Create(stream, version, StorageModeFlags.LeaveOpen))
+        {
+            // Create the storages in random order, so adding them is fast, then link them into a chain
+            Random random = new(1);
+            foreach (int i in Enumerable.Range(0, StorageChainDepth).OrderBy(_ => random.Next()))
+                rootStorage.CreateStorage(StorageChainName(i));
+
+            DirectoryEntries directories = rootStorage.Context.DirectoryEntries;
+            Dictionary<string, DirectoryEntry> entries = rootStorage.EnumerateDirectoryEntries().ToDictionary(e => e.NameString);
+            for (int i = 0; i < StorageChainDepth; i++)
+            {
+                DirectoryEntry entry = entries[StorageChainName(i)];
+                entry.LeftSiblingId = StreamId.NoStream;
+                entry.RightSiblingId = StreamId.NoStream;
+                if (i + 1 < StorageChainDepth)
+                    entry.ChildId = entries[StorageChainName(i + 1)].Id;
+                else
+                    entry.ChildId = cyclic ? entries[StorageChainName(0)].Id : StreamId.NoStream;
+                directories.Write(entry);
+            }
+
+            DirectoryEntry root = directories.GetRootEntry();
+            root.ChildId = entries[StorageChainName(0)].Id;
+            directories.Write(root);
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
+    // Runs the action on a small stack, which recursing once per nesting level of the storage chain would overflow
+    static void RunWithSmallStack(Action action)
+    {
+        Exception? exception = null;
+        Thread thread = new(Run, 256 * 1024);
+        thread.Start();
+        thread.Join();
+
+        if (exception is not null)
+            ExceptionDispatchInfo.Capture(exception).Throw();
+
+        void Run()
+        {
+            try
+            {
+                action();
+            }
+            catch (Exception ex)
+            {
+                exception = ex;
+            }
+        }
+    }
+
+    [TestMethod]
+    [DataRow(Version.V3)]
+    [DataRow(Version.V4)]
+    public void CopyToDeeplyNestedStorages(Version version)
+    {
+        using MemoryStream stream = CreateStorageChain(version, false);
+        using var root = RootStorage.Open(stream, StorageModeFlags.StrictValidation);
+        using var destination = RootStorage.CreateInMemory(version);
+        RunWithSmallStack(() => root.CopyTo(destination));
+
+        Assert.IsTrue(destination.Validate());
+        Storage storage = destination;
+        for (int i = 0; i < StorageChainDepth; i++)
+            storage = storage.OpenStorage(StorageChainName(i));
+        Assert.IsEmpty(storage.EnumerateEntries());
+    }
+
+    [TestMethod]
+    [DataRow(Version.V3)]
+    [DataRow(Version.V4)]
+    public void DeleteDeeplyNestedStorages(Version version)
+    {
+        using MemoryStream stream = CreateStorageChain(version, false);
+        using var root = RootStorage.Open(stream, StorageModeFlags.StrictValidation);
+        RunWithSmallStack(() => root.Delete(StorageChainName(0)));
+
+        Assert.IsTrue(root.Validate());
+        Assert.IsEmpty(root.EnumerateEntries());
+    }
+
+    [TestMethod]
+    [DataRow(Version.V3)]
+    [DataRow(Version.V4)]
+    public void LongStorageCycleThrowsFileFormatExceptionOnCopyTo(Version version)
+    {
+        using MemoryStream stream = CreateStorageChain(version, true);
+        using var root = RootStorage.Open(stream, StorageModeFlags.StrictValidation);
+        using var destination = RootStorage.CreateInMemory(version);
+        Assert.ThrowsExactly<FileFormatException>(() => RunWithSmallStack(() => root.CopyTo(destination)));
+    }
+
+    [TestMethod]
+    [DataRow(Version.V3)]
+    [DataRow(Version.V4)]
+    public void LongStorageCycleThrowsFileFormatExceptionOnDelete(Version version)
+    {
+        using MemoryStream stream = CreateStorageChain(version, true);
+        using var root = RootStorage.Open(stream, StorageModeFlags.StrictValidation);
+        Assert.ThrowsExactly<FileFormatException>(() => RunWithSmallStack(() => root.Delete(StorageChainName(0))));
+    }
+
+    [TestMethod]
+    [DataRow(Version.V3)]
+    [DataRow(Version.V4)]
+    public void SharedStorageThrowsFileFormatExceptionOnCopyTo(Version version)
+    {
+        using MemoryStream stream = new();
+        using (var rootStorage = RootStorage.Create(stream, version, StorageModeFlags.LeaveOpen))
+        {
+            Storage a = rootStorage.CreateStorage("A");
+            Storage b = rootStorage.CreateStorage("B");
+            a.CreateStorage("C");
+
+            // Link the children of "B" to "C", so it is also a child of "A"
+            DirectoryEntries directories = rootStorage.Context.DirectoryEntries;
+            DirectoryEntry entryB = rootStorage.EnumerateDirectoryEntries().Single(e => e.NameString == "B");
+            entryB.ChildId = a.EnumerateDirectoryEntries().Single().Id;
+            directories.Write(entryB);
+        }
+
+        stream.Position = 0;
+        using var root = RootStorage.Open(stream, StorageModeFlags.StrictValidation);
+        using var destination = RootStorage.CreateInMemory(version);
+        Assert.ThrowsExactly<FileFormatException>(() => root.CopyTo(destination));
+    }
+
+    [TestMethod]
+    public void CopyToSelfOrDescendantThrowsArgumentException()
+    {
+        using var root = RootStorage.CreateInMemory();
+        Storage a = root.CreateStorage("A");
+        Storage b = a.CreateStorage("B");
+
+        Assert.ThrowsExactly<ArgumentException>(() => a.CopyTo(a));
+        Assert.ThrowsExactly<ArgumentException>(() => a.CopyTo(b));
+        Assert.ThrowsExactly<ArgumentException>(() => root.CopyTo(b));
     }
 
     [TestMethod]
