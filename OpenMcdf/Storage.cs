@@ -251,6 +251,10 @@ public class Storage : ContextBase
             return false;
         }
 
+        // Callers often open storages recursively, so reject a corrupt storage nested within itself
+        for (Storage? ancestor = this; ancestor is not null; ancestor = ancestor.Parent)
+            ThrowHelper.ThrowIfStorageIsRepeated(ancestor.directoryEntryId == entry.Id, entry);
+
         storage = new Storage(ContextSite, entry, this);
         return true;
     }
@@ -300,28 +304,36 @@ public class Storage : ContextBase
         if (destination is null)
             throw new ArgumentNullException(nameof(destination));
 
-        if (destination == this)
-            throw new ArgumentException("A storage cannot be copied to itself.", nameof(destination));
-
-        foreach (DirectoryEntry entry in EnumerateDirectoryEntries())
+        // Copying into a descendant would keep copying the entries it creates
+        for (Storage? ancestor = destination; ancestor is not null; ancestor = ancestor.Parent)
         {
-            Copy(entry, destination);
+            if (ancestor.ContextSite == ContextSite && ancestor.directoryEntryId == directoryEntryId)
+                throw new ArgumentException("A storage cannot be copied to itself or one of its descendants.", nameof(destination));
         }
-    }
 
-    private void Copy(DirectoryEntry entry, Storage destination)
-    {
-        if (entry.Type is StorageType.Storage)
+        // Copy without recursion, since storages can be nested deeply. Each storage can only be visited once,
+        // which rejects corrupt files where a storage is nested within itself or shared.
+        HashSet<uint> visited = [directoryEntryId];
+        Stack<(Storage Source, Storage Destination)> storages = new();
+        storages.Push((this, destination));
+        while (storages.Count > 0)
         {
-            Storage subSource = new(ContextSite, entry, this);
-            Storage subDestination = destination.CreateStorage(entry.NameString);
-            subSource.CopyTo(subDestination);
-        }
-        else if (entry.Type is StorageType.Stream)
-        {
-            using CfbStream stream = new(ContextSite, entry, this);
-            using CfbStream destinationStream = destination.CreateStream(entry.NameString);
-            stream.CopyTo(destinationStream);
+            (Storage source, Storage target) = storages.Pop();
+            foreach (DirectoryEntry entry in source.EnumerateDirectoryEntries())
+            {
+                if (entry.Type is StorageType.Storage)
+                {
+                    ThrowHelper.ThrowIfStorageIsRepeated(!visited.Add(entry.Id), entry);
+                    Storage subDestination = target.CreateStorage(entry.NameString);
+                    storages.Push((new Storage(ContextSite, entry, source), subDestination));
+                }
+                else if (entry.Type is StorageType.Stream)
+                {
+                    using CfbStream stream = new(ContextSite, entry, source);
+                    using CfbStream destinationStream = target.CreateStream(entry.NameString);
+                    stream.CopyTo(destinationStream);
+                }
+            }
         }
     }
 
@@ -352,13 +364,41 @@ public class Storage : ContextBase
     void DeleteEntry(DirectoryEntry entry)
     {
         if (entry.Type is StorageType.Storage && entry.ChildId is not StreamId.NoStream)
+            new Storage(ContextSite, entry, this).DeleteChildEntries();
+
+        RemoveEntry(entry);
+    }
+
+    // Deletes depth first without recursion, since storages can be nested deeply
+    void DeleteChildEntries()
+    {
+        // Each storage can only be visited once, which rejects corrupt files where a storage is nested within itself
+        HashSet<uint> visited = [directoryEntryId];
+        Stack<Storage> storages = new();
+        storages.Push(this);
+        while (storages.Count > 0)
         {
-            Storage storage = new(ContextSite, entry, this);
-            while (storage.TryDeleteFirstChildEntry())
+            Storage storage = storages.Peek();
+            if (!Context.DirectoryEntries.TryGetDictionaryEntry(storage.GetDirectoryEntry().ChildId, true, out DirectoryEntry? child))
             {
+                storages.Pop();
+            }
+            else if (child.Type is StorageType.Storage && child.ChildId is not StreamId.NoStream)
+            {
+                ThrowHelper.ThrowIfStorageIsRepeated(!visited.Add(child.Id), child);
+                storages.Push(new Storage(ContextSite, child, storage));
+            }
+            else
+            {
+                storage.RemoveEntry(child);
             }
         }
-        else if (entry.Type is StorageType.Stream && !SectorType.IsFreeOrEndOfChain(entry.StartSectorId))
+    }
+
+    // Frees the stream data of an entry and removes it from this storage, once any children are deleted
+    void RemoveEntry(DirectoryEntry entry)
+    {
+        if (entry.Type is StorageType.Stream && !SectorType.IsFreeOrEndOfChain(entry.StartSectorId))
         {
             if (entry.StreamLength < Header.MiniStreamCutoffSize)
             {
@@ -373,14 +413,6 @@ public class Storage : ContextBase
         }
 
         directoryTree.Remove(entry);
-    }
-
-    bool TryDeleteFirstChildEntry()
-    {
-        bool found = Context.DirectoryEntries.TryGetDictionaryEntry(GetDirectoryEntry().ChildId, true, out DirectoryEntry? childEntry);
-        if (childEntry is not null)
-            DeleteEntry(childEntry);
-        return found;
     }
 
     [ExcludeFromCodeCoverage]

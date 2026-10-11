@@ -90,6 +90,12 @@ internal static class ThrowHelper
             throw new FileFormatException("Directory entries are not in a valid binary search tree.");
     }
 
+    public static void ThrowIfStorageIsRepeated(bool condition, DirectoryEntry entry)
+    {
+        if (condition)
+            throw new FileFormatException($"Storage {entry} appears more than once in the directory tree.");
+    }
+
     public static void ThrowIfInvalidColor(DirectoryEntry entry, DirectoryEntry sibling)
     {
         // TODO: Optional strict validation: Files written by LibreOffice have red-black violations.
