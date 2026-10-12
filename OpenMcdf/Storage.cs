@@ -314,6 +314,12 @@ public class Storage : ContextBase
         // Copy without recursion, since storages can be nested deeply. Each storage can only be visited once,
         // which rejects corrupt files where a storage is nested within itself or shared.
         HashSet<uint> visited = [directoryEntryId];
+
+        // The parent check above only follows the opened storages, so a corrupt file can still share the destination
+        // with the source. Reaching it would copy the entries being created, so treat it as visited too.
+        if (destination.ContextSite == ContextSite)
+            visited.Add(destination.directoryEntryId);
+
         Stack<(Storage Source, Storage Destination)> storages = new();
         storages.Push((this, destination));
         while (storages.Count > 0)

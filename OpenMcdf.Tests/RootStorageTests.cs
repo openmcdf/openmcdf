@@ -958,6 +958,39 @@ public sealed class RootStorageTests
     }
 
     [TestMethod]
+    [DataRow(Version.V3, false)]
+    [DataRow(Version.V3, true)]
+    [DataRow(Version.V4, false)]
+    [DataRow(Version.V4, true)]
+    public void CopyToSharedDestinationThrowsFileFormatException(Version version, bool intoChild)
+    {
+        using MemoryStream stream = new();
+        using (var rootStorage = RootStorage.Create(stream, version, StorageModeFlags.LeaveOpen))
+        {
+            rootStorage.CreateStorage("A");
+            rootStorage.CreateStorage("B").CreateStorage("C");
+
+            // Link the children of "A" to "B", so it is also a child of the root
+            DirectoryEntries directories = rootStorage.Context.DirectoryEntries;
+            Dictionary<string, DirectoryEntry> entries = rootStorage.EnumerateDirectoryEntries().ToDictionary(e => e.NameString);
+            DirectoryEntry entryA = entries["A"];
+            entryA.ChildId = entries["B"].Id;
+            directories.Write(entryA);
+        }
+
+        stream.Position = 0;
+        using var root = RootStorage.Open(stream, StorageModeFlags.StrictValidation);
+        Storage a = root.OpenStorage("A");
+
+        // Opened through the root, so the parents of the destination do not include "A"
+        Storage destination = root.OpenStorage("B");
+        if (intoChild)
+            destination = destination.OpenStorage("C");
+
+        Assert.ThrowsExactly<FileFormatException>(() => a.CopyTo(destination));
+    }
+
+    [TestMethod]
     public void CopyToSelfOrDescendantThrowsArgumentException()
     {
         using var root = RootStorage.CreateInMemory();
