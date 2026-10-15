@@ -200,7 +200,14 @@ public sealed class CfbStream : Stream
     public override int ReadByte() => this.ReadByteCore();
 
     /// <inheritdoc/>
-    public override void WriteByte(byte value) => this.WriteByteCore(value);
+    public override void WriteByte(byte value)
+    {
+        // Check before the helper, which would otherwise report the invalidated stream as not writable
+        this.ThrowIfDisposed(isDisposed);
+        this.ThrowIfInvalidated(IsInvalidated);
+
+        this.WriteByteCore(value);
+    }
 
     /// <inheritdoc/>
     public override void Write(ReadOnlySpan<byte> buffer)
