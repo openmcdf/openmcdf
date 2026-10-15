@@ -319,6 +319,10 @@ public sealed class RootStorageTests
             miniStream.Flush();
             fatStream.Flush();
 
+            // Leave directory updates pending without changing the flushed data, so disposal would write stale entries
+            miniStream.SetLength(miniStream.Length);
+            fatStream.SetLength(fatStream.Length);
+
             // Consolidation moves the remaining entries and their data
             rootStorage.Delete("Deleted");
 
