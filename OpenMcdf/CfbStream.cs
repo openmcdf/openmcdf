@@ -63,13 +63,13 @@ public sealed class CfbStream : Stream
     }
 
     /// <inheritdoc/>
-    public override bool CanRead => stream.CanRead;
+    public override bool CanRead => !isDisposed && !IsInvalidated && stream.CanRead;
 
     /// <inheritdoc/>
-    public override bool CanSeek => stream.CanSeek;
+    public override bool CanSeek => !isDisposed && !IsInvalidated && stream.CanSeek;
 
     /// <inheritdoc/>
-    public override bool CanWrite => stream.CanWrite;
+    public override bool CanWrite => !isDisposed && !IsInvalidated && stream.CanWrite;
 
     /// <inheritdoc/>
     public override long Length
