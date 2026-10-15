@@ -321,7 +321,18 @@ public sealed class RootStorageTests
 
             // Consolidation moves the remaining entries and their data
             rootStorage.Delete("Deleted");
+
+            // Enumeration is lazy, so it can start or continue after consolidating
+            IEnumerable<EntryInfo> delayedEntries = storage.EnumerateEntries();
+            IEnumerable<EntryInfo> delayedRootEntries = rootStorage.EnumerateEntries();
+            using IEnumerator<EntryInfo> partialRootEntries = rootStorage.EnumerateEntries().GetEnumerator();
+            Assert.IsTrue(partialRootEntries.MoveNext());
+
             rootStorage.Flush(true);
+
+            Assert.ThrowsExactly<InvalidOperationException>(() => delayedEntries.ToList());
+            Assert.ThrowsExactly<InvalidOperationException>(() => partialRootEntries.MoveNext());
+            Assert.HasCount(3, delayedRootEntries);
 
             foreach (CfbStream stream in new[] { miniStream, fatStream })
             {
