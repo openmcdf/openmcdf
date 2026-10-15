@@ -326,6 +326,9 @@ public sealed class RootStorageTests
             foreach (CfbStream stream in new[] { miniStream, fatStream })
             {
                 byte[] buffer = new byte[16];
+                Assert.IsFalse(stream.CanRead);
+                Assert.IsFalse(stream.CanSeek);
+                Assert.IsFalse(stream.CanWrite);
                 Assert.ThrowsExactly<InvalidOperationException>(() => stream.Length);
                 Assert.ThrowsExactly<InvalidOperationException>(() => stream.Position);
                 Assert.ThrowsExactly<InvalidOperationException>(() => stream.Position = 0);
@@ -353,6 +356,8 @@ public sealed class RootStorageTests
             // Disposing the invalidated streams must not write to the consolidated directory
             miniStream.Dispose();
             fatStream.Dispose();
+            Assert.IsFalse(miniStream.CanRead);
+            Assert.IsFalse(fatStream.CanRead);
         }
 
         using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.StrictValidation))
