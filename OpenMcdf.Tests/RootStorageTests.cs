@@ -351,6 +351,8 @@ public sealed class RootStorageTests
                 Assert.ThrowsExactly<InvalidOperationException>(() => stream.Seek(0, SeekOrigin.Begin));
                 Assert.ThrowsExactly<InvalidOperationException>(() => stream.Read(buffer, 0, buffer.Length));
                 Assert.ThrowsExactly<InvalidOperationException>(() => stream.Write(buffer, 0, buffer.Length));
+                Assert.ThrowsExactly<InvalidOperationException>(() => stream.ReadByte());
+                Assert.ThrowsExactly<InvalidOperationException>(() => stream.WriteByte(0));
                 Assert.ThrowsExactly<InvalidOperationException>(() => stream.SetLength(0));
                 Assert.ThrowsExactly<InvalidOperationException>(stream.Flush);
             }
