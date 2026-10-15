@@ -10,6 +10,7 @@ public class Storage : ContextBase
     readonly string path;
     readonly DirectoryTree directoryTree;
     readonly uint directoryEntryId;
+    int generation;
 
     public Storage? Parent { get; }
 
@@ -21,12 +22,24 @@ public class Storage : ContextBase
 
         directoryTree = new(rootContextSite, directoryEntry.Id);
         directoryEntryId = directoryEntry.Id;
+        generation = rootContextSite.Generation;
         Parent = parent;
         path = parent is null ? $"/" : $"{parent.path}{parent.EntryInfo.Name}/";
     }
 
+    // Consolidation rewrites the directory entries, so the ID may refer to a different entry
+    bool IsInvalidated => generation != ContextSite.Generation;
+
+    // The root entry ID is unchanged by consolidation, so the root storage remains valid
+    private protected void Revalidate() => generation = ContextSite.Generation;
+
     // Read the entry on each use, since adding or removing siblings and children changes it
-    DirectoryEntry GetDirectoryEntry() => Context.DirectoryEntries.GetDictionaryEntry(directoryEntryId);
+    DirectoryEntry GetDirectoryEntry()
+    {
+        this.ThrowIfInvalidated(IsInvalidated);
+
+        return Context.DirectoryEntries.GetDictionaryEntry(directoryEntryId);
+    }
 
     void UpdateDirectoryEntry(Action<DirectoryEntry> update)
     {
@@ -114,6 +127,7 @@ public class Storage : ContextBase
     public IEnumerable<EntryInfo> EnumerateEntries()
     {
         this.ThrowIfDisposed(Context.IsDisposed);
+        this.ThrowIfInvalidated(IsInvalidated);
 
         EntryInfo entryInfo = EntryInfo;
         string path = $"{entryInfo.Path}{entryInfo.Name}";
@@ -143,6 +157,7 @@ public class Storage : ContextBase
         ThrowHelper.ThrowIfNameIsInvalid(name);
 
         this.ThrowIfDisposed(Context.IsDisposed);
+        this.ThrowIfInvalidated(IsInvalidated);
 
         return directoryTree.TryGetDirectoryEntry(name, out DirectoryEntry? _);
     }
@@ -161,6 +176,7 @@ public class Storage : ContextBase
         ThrowHelper.ThrowIfNameIsInvalid(name);
 
         this.ThrowIfDisposed(Context.IsDisposed);
+        this.ThrowIfInvalidated(IsInvalidated);
 
         if (!directoryTree.TryGetDirectoryEntry(name, out DirectoryEntry? entry))
         {
@@ -194,6 +210,7 @@ public class Storage : ContextBase
         ThrowHelper.ThrowIfNameIsInvalid(name);
 
         this.ThrowIfDisposed(Context.IsDisposed);
+        this.ThrowIfInvalidated(IsInvalidated);
         Context.ThrowIfNotWritable();
 
         DirectoryEntry entry = AddDirectoryEntry(StorageType.Storage, name);
@@ -213,6 +230,7 @@ public class Storage : ContextBase
         ThrowHelper.ThrowIfNameIsInvalid(name);
 
         this.ThrowIfDisposed(Context.IsDisposed);
+        this.ThrowIfInvalidated(IsInvalidated);
         Context.ThrowIfNotWritable();
 
         DirectoryEntry entry = AddDirectoryEntry(StorageType.Stream, name);
@@ -243,6 +261,7 @@ public class Storage : ContextBase
         ThrowHelper.ThrowIfNameIsInvalid(name);
 
         this.ThrowIfDisposed(Context.IsDisposed);
+        this.ThrowIfInvalidated(IsInvalidated);
 
         directoryTree.TryGetDirectoryEntry(name, out DirectoryEntry? entry);
         if (entry is null || entry.Type is not StorageType.Storage)
@@ -283,6 +302,7 @@ public class Storage : ContextBase
         ThrowHelper.ThrowIfNameIsInvalid(name);
 
         this.ThrowIfDisposed(Context.IsDisposed);
+        this.ThrowIfInvalidated(IsInvalidated);
 
         directoryTree.TryGetDirectoryEntry(name, out DirectoryEntry? entry);
         if (entry is null || entry.Type is not StorageType.Stream)
@@ -303,6 +323,9 @@ public class Storage : ContextBase
     {
         if (destination is null)
             throw new ArgumentNullException(nameof(destination));
+
+        this.ThrowIfInvalidated(IsInvalidated);
+        destination.ThrowIfInvalidated(destination.IsInvalidated);
 
         // Copying into a descendant would keep copying the entries it creates
         for (Storage? ancestor = destination; ancestor is not null; ancestor = ancestor.Parent)
@@ -358,6 +381,7 @@ public class Storage : ContextBase
         ThrowHelper.ThrowIfNameIsInvalid(name);
 
         this.ThrowIfDisposed(Context.IsDisposed);
+        this.ThrowIfInvalidated(IsInvalidated);
         Context.ThrowIfNotWritable();
 
         directoryTree.TryGetDirectoryEntry(name, out DirectoryEntry? entry);

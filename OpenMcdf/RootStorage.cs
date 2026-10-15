@@ -352,6 +352,10 @@ public sealed class RootStorage : Storage, IDisposable
             using (RootStorage destinationStorage = Create(destinationStream, Context.Version, StorageModeFlags.LeaveOpen))
                 CopyTo(destinationStorage);
 
+            // Directory IDs and sector chains change, so only the root storage remains valid
+            ContextSite.Invalidate();
+            Revalidate();
+
             destinationStream.CopyAllTo(baseStream);
 
             IOContextFlags contextFlags = ToIOContextFlags(storageModeFlags);
