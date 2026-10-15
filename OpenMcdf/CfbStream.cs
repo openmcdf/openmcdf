@@ -7,15 +7,20 @@ public sealed class CfbStream : Stream
 {
     private readonly RootContextSite rootContextSite;
     private readonly uint directoryEntryId;
+    private readonly int generation;
     private Stream stream;
     private bool isDisposed;
 
     long MaxStreamLength => this.rootContextSite.Context.MaxStreamLength;
 
+    // Consolidation rewrites the directory entries and sector chains, so the stream no longer refers to its data
+    bool IsInvalidated => generation != rootContextSite.Generation;
+
     internal CfbStream(RootContextSite rootContextSite, DirectoryEntry directoryEntry, Storage parent)
     {
         this.rootContextSite = rootContextSite;
         directoryEntryId = directoryEntry.Id;
+        generation = rootContextSite.Generation;
         Parent = parent;
         stream = directoryEntry.StreamLength < Header.MiniStreamCutoffSize
             ? new MiniFatStream(rootContextSite, directoryEntry)
@@ -26,7 +31,9 @@ public sealed class CfbStream : Stream
     {
         if (!isDisposed)
         {
-            stream.Dispose();
+            // Flushing an invalidated stream would overwrite another directory entry
+            if (!IsInvalidated)
+                stream.Dispose();
             isDisposed = true;
         }
 
@@ -45,6 +52,8 @@ public sealed class CfbStream : Stream
     {
         get
         {
+            this.ThrowIfInvalidated(IsInvalidated);
+
             EntryInfo parentEntryInfo = Parent.EntryInfo;
             string path = $"{parentEntryInfo.Path}{parentEntryInfo.Name}";
             DirectoryEntry entry = rootContextSite.Context.DirectoryEntries.GetDictionaryEntry(directoryEntryId);
@@ -63,15 +72,39 @@ public sealed class CfbStream : Stream
     public override bool CanWrite => stream.CanWrite;
 
     /// <inheritdoc/>
-    public override long Length => stream.Length;
+    public override long Length
+    {
+        get
+        {
+            this.ThrowIfInvalidated(IsInvalidated);
+
+            return stream.Length;
+        }
+    }
 
     /// <inheritdoc/>
-    public override long Position { get => stream.Position; set => stream.Position = value; }
+    public override long Position
+    {
+        get
+        {
+            this.ThrowIfInvalidated(IsInvalidated);
+
+            return stream.Position;
+        }
+
+        set
+        {
+            this.ThrowIfInvalidated(IsInvalidated);
+
+            stream.Position = value;
+        }
+    }
 
     /// <inheritdoc/>
     public override void Flush()
     {
         this.ThrowIfDisposed(isDisposed);
+        this.ThrowIfInvalidated(IsInvalidated);
 
         stream.Flush();
     }
@@ -82,6 +115,7 @@ public sealed class CfbStream : Stream
         ThrowHelper.ThrowIfStreamArgumentsAreInvalid(buffer, offset, count);
 
         this.ThrowIfDisposed(isDisposed);
+        this.ThrowIfInvalidated(IsInvalidated);
 
         return stream.Read(buffer, offset, count);
     }
@@ -90,6 +124,7 @@ public sealed class CfbStream : Stream
     public override long Seek(long offset, SeekOrigin origin)
     {
         this.ThrowIfDisposed(isDisposed);
+        this.ThrowIfInvalidated(IsInvalidated);
 
         return stream.Seek(offset, origin);
     }
@@ -112,6 +147,7 @@ public sealed class CfbStream : Stream
             throw new ArgumentOutOfRangeException(nameof(value));
 
         this.ThrowIfDisposed(isDisposed);
+        this.ThrowIfInvalidated(IsInvalidated);
         this.ThrowIfNotWritable();
 
         SetLengthCore(value);
@@ -141,6 +177,7 @@ public sealed class CfbStream : Stream
         ThrowHelper.ThrowIfStreamArgumentsAreInvalid(buffer, offset, count);
 
         this.ThrowIfDisposed(isDisposed);
+        this.ThrowIfInvalidated(IsInvalidated);
         this.ThrowIfNotWritable();
 
         EnsureLengthToWrite(count);
@@ -154,6 +191,7 @@ public sealed class CfbStream : Stream
     public override int Read(Span<byte> buffer)
     {
         this.ThrowIfDisposed(isDisposed);
+        this.ThrowIfInvalidated(IsInvalidated);
 
         return stream.Read(buffer);
     }
@@ -168,6 +206,7 @@ public sealed class CfbStream : Stream
     public override void Write(ReadOnlySpan<byte> buffer)
     {
         this.ThrowIfDisposed(isDisposed);
+        this.ThrowIfInvalidated(IsInvalidated);
         this.ThrowIfNotWritable();
 
         EnsureLengthToWrite(buffer.Length);

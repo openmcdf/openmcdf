@@ -298,6 +298,85 @@ public sealed class RootStorageTests
     }
 
     [TestMethod]
+    [DataRow(Version.V3)]
+    [DataRow(Version.V4)]
+    public void ConsolidateWithOpenObjects(Version version)
+    {
+        byte[] miniData = TestData.CreateByteArray(1024);
+        byte[] fatData = TestData.CreateByteArray(16 * 1024);
+
+        using MemoryStream memoryStream = new();
+        using (var rootStorage = RootStorage.Create(memoryStream, version, StorageModeFlags.LeaveOpen))
+        {
+            using (CfbStream stream = rootStorage.CreateStream("Deleted"))
+                stream.Write(fatData, 0, fatData.Length);
+
+            Storage storage = rootStorage.CreateStorage("Storage");
+            using CfbStream miniStream = rootStorage.CreateStream("MiniStream");
+            using CfbStream fatStream = rootStorage.CreateStream("FatStream");
+            miniStream.Write(miniData, 0, miniData.Length);
+            fatStream.Write(fatData, 0, fatData.Length);
+            miniStream.Flush();
+            fatStream.Flush();
+
+            // Consolidation moves the remaining entries and their data
+            rootStorage.Delete("Deleted");
+            rootStorage.Flush(true);
+
+            foreach (CfbStream stream in new[] { miniStream, fatStream })
+            {
+                byte[] buffer = new byte[16];
+                Assert.ThrowsExactly<InvalidOperationException>(() => stream.Length);
+                Assert.ThrowsExactly<InvalidOperationException>(() => stream.Position);
+                Assert.ThrowsExactly<InvalidOperationException>(() => stream.Position = 0);
+                Assert.ThrowsExactly<InvalidOperationException>(() => stream.EntryInfo);
+                Assert.ThrowsExactly<InvalidOperationException>(() => stream.Seek(0, SeekOrigin.Begin));
+                Assert.ThrowsExactly<InvalidOperationException>(() => stream.Read(buffer, 0, buffer.Length));
+                Assert.ThrowsExactly<InvalidOperationException>(() => stream.Write(buffer, 0, buffer.Length));
+                Assert.ThrowsExactly<InvalidOperationException>(() => stream.SetLength(0));
+                Assert.ThrowsExactly<InvalidOperationException>(stream.Flush);
+            }
+
+            Assert.ThrowsExactly<InvalidOperationException>(() => storage.EntryInfo);
+            Assert.ThrowsExactly<InvalidOperationException>(() => storage.CLSID = Guid.NewGuid());
+            Assert.ThrowsExactly<InvalidOperationException>(() => storage.EnumerateEntries());
+            Assert.ThrowsExactly<InvalidOperationException>(() => storage.CreateStream("Child"));
+            Assert.ThrowsExactly<InvalidOperationException>(() => storage.CopyTo(rootStorage));
+            Assert.ThrowsExactly<InvalidOperationException>(() => rootStorage.CopyTo(storage));
+
+            // The root storage and objects opened after consolidating remain usable
+            Assert.HasCount(3, rootStorage.EnumerateEntries());
+            using (CfbStream stream = rootStorage.OpenStream("MiniStream"))
+                CollectionAssert.AreEqual(miniData, ReadAll(stream));
+            rootStorage.OpenStorage("Storage").CreateStorage("Child");
+
+            // Disposing the invalidated streams must not write to the consolidated directory
+            miniStream.Dispose();
+            fatStream.Dispose();
+        }
+
+        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.StrictValidation))
+        {
+            Assert.IsTrue(rootStorage.Validate());
+            Assert.IsFalse(rootStorage.ContainsEntry("Deleted"));
+            Assert.IsTrue(rootStorage.OpenStorage("Storage").ContainsEntry("Child"));
+
+            using (CfbStream stream = rootStorage.OpenStream("MiniStream"))
+                CollectionAssert.AreEqual(miniData, ReadAll(stream));
+
+            using (CfbStream stream = rootStorage.OpenStream("FatStream"))
+                CollectionAssert.AreEqual(fatData, ReadAll(stream));
+        }
+
+        static byte[] ReadAll(Stream stream)
+        {
+            using MemoryStream memoryStream = new();
+            stream.CopyTo(memoryStream);
+            return memoryStream.ToArray();
+        }
+    }
+
+    [TestMethod]
     [DataRow(Version.V3, 0)]
     [DataRow(Version.V3, 1)]
     [DataRow(Version.V3, 2)]
