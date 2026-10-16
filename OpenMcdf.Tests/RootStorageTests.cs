@@ -399,6 +399,41 @@ public sealed class RootStorageTests
     }
 
     [TestMethod]
+    [DataRow(Version.V3)]
+    [DataRow(Version.V4)]
+    public void ConsolidateReadOnly(Version version)
+    {
+        byte[] data = TestData.CreateByteArray(1024);
+
+        using MemoryStream memoryStream = new();
+        using (var rootStorage = RootStorage.Create(memoryStream, version, StorageModeFlags.LeaveOpen))
+        {
+            Storage storage = rootStorage.CreateStorage("Storage");
+            using (CfbStream stream = storage.CreateStream("Stream"))
+                stream.Write(data, 0, data.Length);
+            rootStorage.CreateStream("Sibling");
+        }
+
+        using MemoryStream readOnlyStream = new(memoryStream.ToArray(), false);
+        using (var rootStorage = RootStorage.Open(readOnlyStream))
+        {
+            Storage storage = rootStorage.OpenStorage("Storage");
+            using CfbStream stream = storage.OpenStream("Stream");
+            using IEnumerator<EntryInfo> entries = rootStorage.EnumerateEntries().GetEnumerator();
+            Assert.IsTrue(entries.MoveNext());
+
+            Assert.ThrowsExactly<NotSupportedException>(() => rootStorage.Flush(true));
+
+            // The failed consolidation must not invalidate open objects
+            byte[] buffer = new byte[data.Length];
+            Assert.AreEqual(data.Length, stream.Read(buffer, 0, buffer.Length));
+            CollectionAssert.AreEqual(data, buffer);
+            Assert.IsTrue(storage.ContainsEntry("Stream"));
+            Assert.IsTrue(entries.MoveNext());
+        }
+    }
+
+    [TestMethod]
     [DataRow(Version.V3, 0)]
     [DataRow(Version.V3, 1)]
     [DataRow(Version.V3, 2)]

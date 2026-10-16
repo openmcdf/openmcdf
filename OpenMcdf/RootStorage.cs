@@ -336,6 +336,9 @@ public sealed class RootStorage : Storage, IDisposable
 
     void Consolidate()
     {
+        // Reject before invalidating open objects, since the base stream cannot be overwritten
+        Context.ThrowIfNotWritable();
+
         // TODO: Consolidate by defragmentation instead of copy
         Stream baseStream = Context.BaseStream;
         Stream? destinationStream = null;
