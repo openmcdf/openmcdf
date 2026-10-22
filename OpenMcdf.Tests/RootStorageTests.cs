@@ -178,7 +178,7 @@ public sealed class RootStorageTests
     [TestMethod]
     public void OpenNonStrictWithNonZeroHeaderCLSID()
     {
-        Guid expectedHeaderCLSID = Guid.Parse("00020906-0000-0000-c000-000000000046");
+        var expectedHeaderCLSID = Guid.Parse("00020906-0000-0000-c000-000000000046");
         using MemoryStream stream = TestData.CreateMemoryStreamFromFile("TestStream_v3_0.cfs");
         stream.Position = 8;
         stream.Write(expectedHeaderCLSID.ToByteArray(), 0, 16);
@@ -197,7 +197,7 @@ public sealed class RootStorageTests
     [TestMethod]
     public void SetHeaderCLSID()
     {
-        Guid expectedHeaderCLSID = Guid.Parse("00020906-0000-0000-c000-000000000046");
+        var expectedHeaderCLSID = Guid.Parse("00020906-0000-0000-c000-000000000046");
 
         using MemoryStream stream = new();
         using (var rootStorage = RootStorage.Create(stream, Version.V3, StorageModeFlags.LeaveOpen))
@@ -606,7 +606,7 @@ public sealed class RootStorageTests
 
         using MemoryStream originalMemoryStream = new();
         using MemoryStream switchedMemoryStream = new();
-        Guid clsid = Guid.NewGuid();
+        var clsid = Guid.NewGuid();
         using (var rootStorage = RootStorage.Create(originalMemoryStream, version, flags))
         {
             // Create all siblings before opening the objects held across the switch,
@@ -731,14 +731,14 @@ public sealed class RootStorageTests
         string fileName = Path.GetTempFileName();
         try
         {
-            using (RootStorage rootStorage = RootStorage.Create(fileName))
+            using (var rootStorage = RootStorage.Create(fileName))
             {
             }
 
             DateTime expectedLastWriteTimeUtc = new(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
             File.SetLastWriteTimeUtc(fileName, expectedLastWriteTimeUtc);
 
-            using (RootStorage rootStorage = RootStorage.Open(fileName, FileMode.Open, FileAccess.ReadWrite))
+            using (var rootStorage = RootStorage.Open(fileName, FileMode.Open, FileAccess.ReadWrite))
             {
             }
 
@@ -971,7 +971,7 @@ public sealed class RootStorageTests
                 rootStorage.CreateStorage(StorageChainName(i));
 
             DirectoryEntries directories = rootStorage.Context.DirectoryEntries;
-            Dictionary<string, DirectoryEntry> entries = rootStorage.EnumerateDirectoryEntries().ToDictionary(e => e.NameString);
+            var entries = rootStorage.EnumerateDirectoryEntries().ToDictionary(e => e.NameString);
             for (int i = 0; i < StorageChainDepth; i++)
             {
                 DirectoryEntry entry = entries[StorageChainName(i)];
@@ -1108,7 +1108,7 @@ public sealed class RootStorageTests
 
             // Link the children of "A" to "B", so it is also a child of the root
             DirectoryEntries directories = rootStorage.Context.DirectoryEntries;
-            Dictionary<string, DirectoryEntry> entries = rootStorage.EnumerateDirectoryEntries().ToDictionary(e => e.NameString);
+            var entries = rootStorage.EnumerateDirectoryEntries().ToDictionary(e => e.NameString);
             DirectoryEntry entryA = entries["A"];
             entryA.ChildId = entries["B"].Id;
             directories.Write(entryA);
@@ -1156,7 +1156,7 @@ public sealed class RootStorageTests
                 rootStorage.CreateStream(Name(i)).Dispose();
 
             DirectoryEntries directories = rootStorage.Context.DirectoryEntries;
-            Dictionary<string, DirectoryEntry> entries = rootStorage.EnumerateDirectoryEntries().ToDictionary(e => e.NameString);
+            var entries = rootStorage.EnumerateDirectoryEntries().ToDictionary(e => e.NameString);
 
             DirectoryEntry? next = null;
             for (int level = depth - 1; level >= 0; level--)
