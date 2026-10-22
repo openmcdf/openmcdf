@@ -480,7 +480,7 @@ public sealed class StreamTests
 #endif
     public void TransactedWriteAcrossSectorBoundary(Version version, int writeModeValue)
     {
-        WriteMode writeMode = (WriteMode)writeModeValue;
+        var writeMode = (WriteMode)writeModeValue;
         int sectorSize = version == Version.V3 ? 512 : 4096;
         int streamLength = sectorSize * 2;
 
