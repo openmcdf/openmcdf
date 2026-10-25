@@ -434,6 +434,61 @@ public sealed class RootStorageTests
     }
 
     [TestMethod]
+    [DataRow(Version.V3)]
+    [DataRow(Version.V4)]
+    public void ConsolidatePreservesMetadata(Version version)
+    {
+        Guid headerClsid = Guid.NewGuid();
+        Guid rootClsid = Guid.NewGuid();
+        Guid storageClsid = Guid.NewGuid();
+        Guid nestedClsid = Guid.NewGuid();
+
+        using MemoryStream memoryStream = new();
+        using (var rootStorage = RootStorage.Create(memoryStream, version, StorageModeFlags.LeaveOpen))
+        {
+            rootStorage.HeaderCLSID = headerClsid;
+            rootStorage.CLSID = rootClsid;
+            rootStorage.StateBits = 1;
+            rootStorage.ModifiedFileTime = 2;
+
+            Storage storage = rootStorage.CreateStorage("Storage");
+            storage.CLSID = storageClsid;
+            storage.StateBits = 3;
+            storage.CreationFileTime = 4;
+            storage.ModifiedFileTime = 5;
+
+            Storage nested = storage.CreateStorage("Nested");
+            nested.CLSID = nestedClsid;
+            nested.StateBits = 6;
+
+            rootStorage.CreateStream("Deleted");
+            rootStorage.Delete("Deleted");
+            rootStorage.Flush(true);
+        }
+
+        // Strict validation requires an empty header CLSID
+        using (var rootStorage = RootStorage.Open(memoryStream))
+        {
+            Assert.IsTrue(rootStorage.Validate());
+            Assert.AreEqual(headerClsid, rootStorage.HeaderCLSID);
+            Assert.AreEqual(rootClsid, rootStorage.CLSID);
+            Assert.AreEqual(1u, rootStorage.StateBits);
+            Assert.AreEqual(0ul, rootStorage.CreationFileTime);
+            Assert.AreEqual(2ul, rootStorage.ModifiedFileTime);
+
+            Storage storage = rootStorage.OpenStorage("Storage");
+            Assert.AreEqual(storageClsid, storage.CLSID);
+            Assert.AreEqual(3u, storage.StateBits);
+            Assert.AreEqual(4ul, storage.CreationFileTime);
+            Assert.AreEqual(5ul, storage.ModifiedFileTime);
+
+            Storage nested = storage.OpenStorage("Nested");
+            Assert.AreEqual(nestedClsid, nested.CLSID);
+            Assert.AreEqual(6u, nested.StateBits);
+        }
+    }
+
+    [TestMethod]
     [DataRow(Version.V3, 0)]
     [DataRow(Version.V3, 1)]
     [DataRow(Version.V3, 2)]
