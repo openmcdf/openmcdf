@@ -147,9 +147,15 @@ internal sealed class MiniFatStream : Stream
                 return readCount;
             position += read;
             readCount += read;
-            sectorOffset = 0;
             if (readCount >= realCount)
                 return readCount;
+
+            // The base stream may read less than requested, so only move to the next sector once this one is read
+            sectorOffset += read;
+            if (sectorOffset < miniSector.Length)
+                continue;
+
+            sectorOffset = 0;
             if (!miniChain.MoveNext())
                 throw new FileFormatException($"The mini FAT chain was shorter than the stream length.");
         }
@@ -268,9 +274,15 @@ internal sealed class MiniFatStream : Stream
                 return readCount;
             position += read;
             readCount += read;
-            sectorOffset = 0;
             if (readCount >= realCount)
                 return readCount;
+
+            // The base stream may read less than requested, so only move to the next sector once this one is read
+            sectorOffset += read;
+            if (sectorOffset < miniSector.Length)
+                continue;
+
+            sectorOffset = 0;
             if (!miniChain.MoveNext())
                 throw new FileFormatException($"The mini FAT chain was shorter than the stream length.");
         }
