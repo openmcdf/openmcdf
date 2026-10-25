@@ -14,8 +14,8 @@ public sealed class CfbStream : Stream
 
     long MaxStreamLength => this.rootContextSite.Context.MaxStreamLength;
 
-    // Consolidation rewrites the directory entries and sector chains, and deleting the stream frees its sectors and
-    // recycles its entry, so the stream no longer refers to its data
+    // Consolidating or reverting rewrites the directory entries and sector chains, and deleting the stream frees its
+    // sectors and recycles its entry, so the stream no longer refers to its data
     bool IsInvalidated => generation != rootContextSite.Generation
         || entryDeletionCount != rootContextSite.GetEntryDeletionCount(directoryEntryId);
 

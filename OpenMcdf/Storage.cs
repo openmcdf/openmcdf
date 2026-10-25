@@ -29,7 +29,7 @@ public class Storage : ContextBase
         path = parent is null ? $"/" : $"{parent.path}{parent.EntryInfo.Name}/";
     }
 
-    // Consolidation rewrites the directory entries, and deleting the storage recycles its entry,
+    // Consolidating or reverting rewrites the directory entries, and deleting the storage recycles its entry,
     // so the ID may refer to a different entry
     bool IsInvalidated => generation != ContextSite.Generation
         || entryDeletionCount != ContextSite.GetEntryDeletionCount(directoryEntryId);
