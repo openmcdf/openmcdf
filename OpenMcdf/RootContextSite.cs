@@ -5,6 +5,8 @@
 /// </summary>
 internal sealed class RootContextSite
 {
+    // Deleted directory entries are recycled, so count deletions to invalidate the storages and streams opened before them
+    readonly Dictionary<uint, int> entryDeletionCounts = new();
     RootContext? context;
 
     internal RootContext Context => context!;
@@ -15,6 +17,10 @@ internal sealed class RootContextSite
     internal int Generation { get; private set; }
 
     internal void Invalidate() => Generation++;
+
+    internal int GetEntryDeletionCount(uint streamId) => entryDeletionCounts.TryGetValue(streamId, out int count) ? count : 0;
+
+    internal void InvalidateEntry(uint streamId) => entryDeletionCounts[streamId] = GetEntryDeletionCount(streamId) + 1;
 
     internal void Switch(RootContext context)
     {

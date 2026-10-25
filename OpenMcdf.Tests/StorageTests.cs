@@ -356,6 +356,72 @@ public sealed class StorageTests
     }
 
     [TestMethod]
+    [DataRow(Version.V3, 100)]
+    [DataRow(Version.V3, 5000)]
+    [DataRow(Version.V4, 100)]
+    [DataRow(Version.V4, 5000)]
+    public void DeleteInvalidatesOpenObjects(Version version, int length)
+    {
+        byte[] data = TestData.CreateByteArray(length);
+        byte[] otherData = new byte[length * 2];
+        otherData.AsSpan().Fill(7);
+
+        using MemoryStream memoryStream = new();
+        using (var rootStorage = RootStorage.Create(memoryStream, version, StorageModeFlags.LeaveOpen))
+        {
+            CfbStream deletedStream = rootStorage.CreateStream("DeletedStream");
+            deletedStream.Write(data, 0, data.Length);
+            Storage deletedStorage = rootStorage.CreateStorage("DeletedStorage");
+            CfbStream deletedChild = deletedStorage.CreateStream("Child");
+            deletedChild.Write(data, 0, data.Length);
+            using CfbStream sibling = rootStorage.CreateStream("Sibling");
+
+            rootStorage.Delete("DeletedStream");
+            rootStorage.Delete("DeletedStorage");
+
+            // New entries recycle the deleted entries and sectors
+            using (CfbStream stream = rootStorage.CreateStream("Added1"))
+                stream.Write(otherData, 0, otherData.Length);
+            using (CfbStream stream = rootStorage.CreateStream("Added2"))
+                stream.Write(otherData, 0, otherData.Length);
+            rootStorage.CreateStorage("Added3");
+
+            foreach (CfbStream stream in new[] { deletedStream, deletedChild })
+            {
+                Assert.IsFalse(stream.CanWrite);
+                Assert.ThrowsExactly<InvalidOperationException>(() => stream.Write(data, 0, data.Length));
+                Assert.ThrowsExactly<InvalidOperationException>(() => stream.SetLength(0));
+                Assert.ThrowsExactly<InvalidOperationException>(() => stream.Length);
+            }
+
+            Assert.ThrowsExactly<InvalidOperationException>(() => deletedStorage.EntryInfo);
+            Assert.ThrowsExactly<InvalidOperationException>(() => deletedStorage.CreateStream("Other"));
+
+            // Disposing the deleted streams must not write to the recycled entries
+            deletedStream.Dispose();
+            deletedChild.Dispose();
+
+            // Objects for other entries remain valid
+            sibling.Write(data, 0, data.Length);
+        }
+
+        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.StrictValidation))
+        {
+            Assert.IsTrue(rootStorage.Validate());
+            CollectionAssert.AreEquivalent(new[] { "Sibling", "Added1", "Added2", "Added3" }, rootStorage.EnumerateEntries().Select(e => e.Name).ToList());
+
+            foreach (string name in new[] { "Added1", "Added2" })
+            {
+                using CfbStream stream = rootStorage.OpenStream(name);
+                byte[] actual = new byte[otherData.Length];
+                Assert.AreEqual(otherData.Length, stream.Length);
+                stream.ReadExactly(actual);
+                CollectionAssert.AreEqual(otherData, actual);
+            }
+        }
+    }
+
+    [TestMethod]
     [DataRow(Version.V3)]
     [DataRow(Version.V4)]
     public void GetAndSetMetadata(Version version)
