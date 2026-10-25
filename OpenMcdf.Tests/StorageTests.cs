@@ -376,6 +376,14 @@ public sealed class StorageTests
             deletedChild.Write(data, 0, data.Length);
             using CfbStream sibling = rootStorage.CreateStream("Sibling");
 
+            // Flush so deleting frees the allocated sectors, then leave directory updates pending without changing
+            // the data, so disposal would write stale entries
+            foreach (CfbStream stream in new[] { deletedStream, deletedChild })
+            {
+                stream.Flush();
+                stream.SetLength(stream.Length);
+            }
+
             rootStorage.Delete("DeletedStream");
             rootStorage.Delete("DeletedStorage");
 
@@ -419,6 +427,24 @@ public sealed class StorageTests
                 CollectionAssert.AreEqual(otherData, actual);
             }
         }
+    }
+
+    [TestMethod]
+    [DataRow(Version.V3)]
+    [DataRow(Version.V4)]
+    public void DeleteInvalidatesStartedEnumeration(Version version)
+    {
+        using var rootStorage = RootStorage.CreateInMemory(version);
+        Storage storage = rootStorage.CreateStorage("Storage");
+        storage.CreateStorage("Child1");
+        storage.CreateStorage("Child2");
+
+        using IEnumerator<EntryInfo> entries = storage.EnumerateEntries().GetEnumerator();
+        Assert.IsTrue(entries.MoveNext());
+
+        rootStorage.Delete("Storage");
+
+        Assert.ThrowsExactly<InvalidOperationException>(() => entries.MoveNext());
     }
 
     [TestMethod]
