@@ -76,6 +76,30 @@ public sealed class StreamTests
         StreamAssert.AreEqual(expectedStream, actualStream);
     }
 
+    [TestMethod]
+    [DynamicData(nameof(TestData.ShortVersionsAndSizes), typeof(TestData))]
+    public void ReadFromStreamWithShortReads(Version version, int length)
+    {
+        // Test files are filled with bytes equal to their position modulo 256
+        byte[] expected = TestData.CreateByteArray(length);
+
+        string fileName = $"TestStream_v{(int)version}_{length}.cfs";
+        using ShortReadMemoryStream baseStream = new(File.ReadAllBytes(fileName));
+        using var rootStorage = RootStorage.Open(baseStream, StorageModeFlags.StrictValidation);
+        using CfbStream stream = rootStorage.OpenStream("TestStream");
+
+        byte[] actual = new byte[length];
+        stream.ReadExactly(actual, 0, actual.Length);
+        CollectionAssert.AreEqual(expected, actual);
+
+#if !NETFRAMEWORK
+        actual.AsSpan().Clear();
+        stream.Position = 0;
+        stream.ReadExactly(actual.AsSpan());
+        CollectionAssert.AreEqual(expected, actual);
+#endif
+    }
+
 #if !NETSTANDARD2_0 && !NETFRAMEWORK
     [TestMethod]
     [DynamicData(nameof(TestData.ShortVersionsAndSizes), typeof(TestData))]
@@ -757,5 +781,22 @@ public sealed class StreamTests
             Assert.IsFalse(rootStorage.ContainsEntry("C"));
             Assert.HasCount(1, rootStorage.EnumerateEntries());
         }
+    }
+
+    // Reads fewer bytes than requested, which the Stream contract allows
+    sealed class ShortReadMemoryStream : MemoryStream
+    {
+        const int MaxReadLength = 7;
+
+        public ShortReadMemoryStream(byte[] buffer)
+            : base(buffer, writable: false)
+        {
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => base.Read(buffer, offset, Math.Min(count, MaxReadLength));
+
+#if !NETFRAMEWORK
+        public override int Read(Span<byte> buffer) => base.Read(buffer[..Math.Min(buffer.Length, MaxReadLength)]);
+#endif
     }
 }

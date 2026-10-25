@@ -159,9 +159,15 @@ internal sealed class FatStream : Stream
                 return readCount;
             position += read;
             readCount += read;
-            sectorOffset = 0;
             if (readCount >= realCount)
                 return readCount;
+
+            // The base stream may read less than requested, so only move to the next sector once this one is read
+            sectorOffset += read;
+            if (sectorOffset < sector.Length)
+                continue;
+
+            sectorOffset = 0;
             if (!chain.MoveNext())
                 throw new FileFormatException($"The FAT chain was shorter than the stream length.");
         }
@@ -275,9 +281,15 @@ internal sealed class FatStream : Stream
                 return readCount;
             position += read;
             readCount += read;
-            sectorOffset = 0;
             if (readCount >= realCount)
                 return readCount;
+
+            // The base stream may read less than requested, so only move to the next sector once this one is read
+            sectorOffset += read;
+            if (sectorOffset < sector.Length)
+                continue;
+
+            sectorOffset = 0;
             if (!chain.MoveNext())
                 throw new FileFormatException($"The FAT chain was shorter than the stream length.");
         }
