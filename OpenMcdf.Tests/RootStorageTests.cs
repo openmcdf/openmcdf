@@ -489,6 +489,89 @@ public sealed class RootStorageTests
     }
 
     [TestMethod]
+    [DataRow(Version.V3)]
+    [DataRow(Version.V4)]
+    public void ModifyAfterRevert(Version version)
+    {
+        byte[] data = TestData.CreateByteArray(5000);
+
+        using MemoryStream memoryStream = new();
+        using (var rootStorage = RootStorage.Create(memoryStream, version, StorageModeFlags.LeaveOpen))
+        {
+            using CfbStream stream = rootStorage.CreateStream("Committed");
+            stream.Write(data, 0, data.Length);
+        }
+
+        long originalLength = memoryStream.Length;
+
+        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.LeaveOpen | StorageModeFlags.Transacted))
+        {
+            // Grow the FAT, mini FAT and directory so the header and caches change
+            for (int i = 0; i < 200; i++)
+            {
+                using CfbStream stream = rootStorage.CreateStream($"Reverted{i}");
+                stream.Write(data, 0, data.Length);
+            }
+
+            Storage storage = rootStorage.CreateStorage("RevertedStorage");
+            using CfbStream openStream = rootStorage.CreateStream("RevertedOpen");
+            openStream.Write(data, 0, 100);
+
+            rootStorage.Revert();
+
+            // Objects opened before reverting may refer to entries that no longer exist
+            Assert.ThrowsExactly<InvalidOperationException>(() => storage.EntryInfo);
+            Assert.ThrowsExactly<InvalidOperationException>(() => openStream.Write(data, 0, 1));
+            Assert.IsFalse(openStream.CanWrite);
+
+            Assert.AreEqual("Committed", Assert.ContainsSingle(rootStorage.EnumerateEntries()).Name);
+
+            using (CfbStream stream = rootStorage.CreateStream("Added"))
+                stream.Write(data, 0, 100);
+
+            rootStorage.Commit();
+        }
+
+        // The reverted streams total 1 MB, while the added stream only needs a few more sectors
+        Assert.IsLessThan(originalLength + (64 * 1024), memoryStream.Length);
+
+        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.StrictValidation))
+        {
+            Assert.IsTrue(rootStorage.Validate());
+            CollectionAssert.AreEquivalent(new[] { "Committed", "Added" }, rootStorage.EnumerateEntries().Select(e => e.Name).ToList());
+
+            using CfbStream stream = rootStorage.OpenStream("Committed");
+            byte[] actual = new byte[data.Length];
+            stream.ReadExactly(actual);
+            CollectionAssert.AreEqual(data, actual);
+        }
+    }
+
+    [TestMethod]
+    [DataRow(Version.V3)]
+    [DataRow(Version.V4)]
+    public void RevertNewTransactedFile(Version version)
+    {
+        using MemoryStream memoryStream = new();
+        using (var rootStorage = RootStorage.Create(memoryStream, version, StorageModeFlags.LeaveOpen | StorageModeFlags.Transacted))
+        {
+            rootStorage.CreateStorage("Reverted");
+            rootStorage.Revert();
+
+            Assert.IsEmpty(rootStorage.EnumerateEntries());
+            rootStorage.CreateStorage("Added");
+            rootStorage.Commit();
+        }
+
+        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.StrictValidation))
+        {
+            Assert.IsTrue(rootStorage.Validate());
+            Assert.AreEqual(version, (Version)rootStorage.Context.Header.MajorVersion);
+            Assert.AreEqual("Added", Assert.ContainsSingle(rootStorage.EnumerateEntries()).Name);
+        }
+    }
+
+    [TestMethod]
     [DataRow(Version.V3, 0)]
     [DataRow(Version.V3, 1)]
     [DataRow(Version.V3, 2)]

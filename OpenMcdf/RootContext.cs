@@ -73,6 +73,8 @@ internal sealed class RootContext : ContextBase, IDisposable
 
     public bool IsStrict => contextFlags.HasFlag(IOContextFlags.StrictValidation);
 
+    public IOContextFlags ContextFlags => contextFlags;
+
     public bool IsDisposed { get; private set; }
 
     /// <summary>
@@ -177,12 +179,37 @@ internal sealed class RootContext : ContextBase, IDisposable
             Fat.Dispose();
             writer?.Dispose();
             Reader.Dispose();
-            string? overlayFileName = (transactedStream?.OverlayStream as FileStream)?.Name;
-            transactedStream?.Dispose();
-            if (overlayFileName is not null)
-                File.Delete(overlayFileName);
+            DisposeTransactedStream();
             if (!contextFlags.HasFlag(IOContextFlags.LeaveOpen))
                 BaseStream.Dispose();
+        }
+        finally
+        {
+            IsDisposed = true;
+        }
+    }
+
+    void DisposeTransactedStream()
+    {
+        string? overlayFileName = (transactedStream?.OverlayStream as FileStream)?.Name;
+        transactedStream?.Dispose();
+        if (overlayFileName is not null)
+            File.Delete(overlayFileName);
+    }
+
+    /// <summary>
+    /// Releases the context without writing pending changes or closing the base stream, so that a new context can replace it.
+    /// </summary>
+    public void Discard()
+    {
+        if (IsDisposed)
+            return;
+
+        try
+        {
+            // The FAT, mini FAT and streams would flush cached changes when disposed, and the reader and writer
+            // leave the stream open, so only the transaction overlay needs releasing
+            DisposeTransactedStream();
         }
         finally
         {

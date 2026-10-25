@@ -399,6 +399,21 @@ public sealed class RootStorage : Storage, IDisposable
         this.ThrowIfDisposed(Context.IsDisposed);
 
         Context.Revert();
+
+        // The header, FAT and directory caches still hold the reverted changes, so replace the context.
+        // Open objects may refer to entries and sectors that no longer exist, so only the root storage remains valid.
+        RootContext revertedContext = Context;
+        IOContextFlags contextFlags = revertedContext.ContextFlags & ~IOContextFlags.Create;
+        if (revertedContext.BaseStream.Length == 0)
+            contextFlags |= IOContextFlags.Create; // Nothing has been committed to a new compound file yet
+        revertedContext.Discard();
+
+        ContextSite.Invalidate();
+        Revalidate();
+
+        Stream baseStream = revertedContext.BaseStream;
+        baseStream.Position = 0;
+        _ = new RootContext(ContextSite, baseStream, revertedContext.Version, contextFlags);
     }
 
     private void SwitchToCore(Stream stream, bool allowLeaveOpen)
