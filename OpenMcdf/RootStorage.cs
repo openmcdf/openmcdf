@@ -353,7 +353,12 @@ public sealed class RootStorage : Storage, IDisposable
             };
 
             using (RootStorage destinationStorage = Create(destinationStream, Context.Version, StorageModeFlags.LeaveOpen))
+            {
+                // Copying only creates the entries within the root storage, so also keep its own metadata
                 CopyTo(destinationStorage);
+                CopyMetadataTo(destinationStorage);
+                destinationStorage.Context.Header.CLSID = Context.Header.CLSID;
+            }
 
             // Directory IDs and sector chains change, so only the root storage remains valid
             ContextSite.Invalidate();

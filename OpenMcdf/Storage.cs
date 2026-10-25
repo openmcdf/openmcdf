@@ -50,6 +50,18 @@ public class Storage : ContextBase
         Context.DirectoryEntries.Write(entry);
     }
 
+    // Creating an entry resets its metadata, so copies keep the metadata of the source
+    void CopyMetadataFrom(DirectoryEntry source) => UpdateDirectoryEntry(entry =>
+    {
+        entry.CLSID = source.CLSID;
+        entry.StateBits = source.StateBits;
+        if (entry.Type is not StorageType.Root)
+            entry.CreationTime = source.CreationTime; // Must be zero for the root storage
+        entry.ModifiedTime = source.ModifiedTime;
+    });
+
+    private protected void CopyMetadataTo(Storage destination) => destination.CopyMetadataFrom(GetDirectoryEntry());
+
     /// <summary>
     /// Gets metadata about this storage entry.
     /// </summary>
@@ -364,6 +376,7 @@ public class Storage : ContextBase
                 {
                     ThrowHelper.ThrowIfStorageIsRepeated(!visited.Add(entry.Id), entry);
                     Storage subDestination = target.CreateStorage(entry.NameString);
+                    subDestination.CopyMetadataFrom(entry);
                     storages.Push((new Storage(ContextSite, entry, source), subDestination));
                 }
                 else if (entry.Type is StorageType.Stream)
