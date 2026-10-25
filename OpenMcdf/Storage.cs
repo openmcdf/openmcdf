@@ -141,7 +141,7 @@ public class Storage : ContextBase
 
     internal IEnumerable<DirectoryEntry> EnumerateDirectoryEntries()
     {
-        // The sequence is lazy, so check on each advance in case it is enumerated across a consolidation.
+        // The sequence is lazy, so check on each advance in case it is enumerated across a consolidation or deletion.
         // Compare with the generation at the start, since the root storage is revalidated by consolidation.
         this.ThrowIfInvalidated(IsInvalidated);
         int startGeneration = generation;
@@ -149,7 +149,7 @@ public class Storage : ContextBase
         using DirectoryTreeEnumerator treeEnumerator = new(ContextSite, directoryEntryId);
         while (true)
         {
-            this.ThrowIfInvalidated(startGeneration != ContextSite.Generation);
+            this.ThrowIfInvalidated(IsInvalidated || startGeneration != ContextSite.Generation);
 
             if (!treeEnumerator.MoveNext())
                 yield break;
