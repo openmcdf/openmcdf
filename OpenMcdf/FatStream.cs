@@ -217,8 +217,16 @@ internal sealed class FatStream : Stream
         uint lastIndex = 0;
         do
         {
-            if (!chain.MoveTo(chainIndex))
+            // Extending resets the chain enumerator, so move to the index again
+            while (!chain.MoveTo(chainIndex))
+            {
                 lastIndex = chain.ExtendFrom(lastIndex);
+                if (SectorType.IsFreeOrEndOfChain(startSectorId))
+                {
+                    startSectorId = lastIndex;
+                    isDirectoryEntryDirty = true;
+                }
+            }
 
             Sector sector = chain.CurrentSector;
             writer.Position = sector.Position + sectorOffset;
@@ -299,8 +307,16 @@ internal sealed class FatStream : Stream
         uint lastIndex = 0;
         do
         {
-            if (!chain.MoveTo(chainIndex))
+            // Extending resets the chain enumerator, so move to the index again
+            while (!chain.MoveTo(chainIndex))
+            {
                 lastIndex = chain.ExtendFrom(lastIndex);
+                if (SectorType.IsFreeOrEndOfChain(startSectorId))
+                {
+                    startSectorId = lastIndex;
+                    isDirectoryEntryDirty = true;
+                }
+            }
 
             Sector sector = chain.CurrentSector;
             writer.Position = sector.Position + sectorOffset;

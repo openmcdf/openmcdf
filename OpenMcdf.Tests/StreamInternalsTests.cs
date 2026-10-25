@@ -150,6 +150,39 @@ public sealed class StreamInternalsTests
     }
 
     [TestMethod]
+    [DataRow(StreamId.NoStream, false)]
+    [DataRow(SectorType.EndOfChain, false)]
+#if !NETFRAMEWORK
+    [DataRow(StreamId.NoStream, true)]
+    [DataRow(SectorType.EndOfChain, true)]
+#endif
+    public void FatStream_WriteToEmptyChain(uint startSectorId, bool span)
+    {
+        using RootStorage root = CreateRoot(out _, out _, out DirectoryEntry empty);
+        byte[] buffer = TestData.CreateByteArray(BigLength);
+
+        // Start beyond the first sector, so the chain is extended more than once before writing
+        using (FatStream stream = new(root.ContextSite, empty.Id, startSectorId, 0))
+        {
+            stream.Position = 1000;
+            if (!span)
+                stream.Write(buffer, 1000, buffer.Length - 1000);
+#if !NETFRAMEWORK
+            else
+                stream.Write(buffer.AsSpan(1000));
+#endif
+        }
+
+        DirectoryEntry entry = FindEntry(root, "empty");
+        Assert.AreEqual(BigLength, entry.StreamLength);
+        using CfbStream cfbStream = root.OpenStream("empty");
+        byte[] actual = new byte[BigLength];
+        cfbStream.ReadExactly(actual);
+        CollectionAssert.AreEqual(buffer.Skip(1000).ToArray(), actual.Skip(1000).ToArray());
+        Assert.IsTrue(root.Validate());
+    }
+
+    [TestMethod]
     public void FatStream_CanWriteIsFalseAfterDispose()
     {
         using RootStorage root = CreateRoot(out DirectoryEntry big, out _, out _);
