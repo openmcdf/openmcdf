@@ -71,6 +71,8 @@ internal sealed class RootContext : ContextBase, IDisposable
     [MemberNotNullWhen(true, nameof(transactedStream))]
     public bool CanCommit => transactedStream is not null;
 
+    public bool HasUncommittedChanges => transactedStream is not null && transactedStream.IsDirty;
+
     public bool IsStrict => contextFlags.HasFlag(IOContextFlags.StrictValidation);
 
     public IOContextFlags ContextFlags => contextFlags;

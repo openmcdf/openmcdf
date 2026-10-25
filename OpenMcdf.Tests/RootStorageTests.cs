@@ -491,6 +491,51 @@ public sealed class RootStorageTests
     [TestMethod]
     [DataRow(Version.V3)]
     [DataRow(Version.V4)]
+    public void ConsolidateTransactedRequiresCommit(Version version)
+    {
+        string fileName = Path.GetTempFileName();
+
+        try
+        {
+            using (var rootStorage = RootStorage.Create(fileName, version))
+                rootStorage.CreateStream("Committed");
+
+            using (var rootStorage = RootStorage.Open(fileName, FileMode.Open, StorageModeFlags.Transacted))
+            {
+                using CfbStream stream = rootStorage.CreateStream("Uncommitted");
+                stream.WriteByte(1);
+
+                // Consolidating would write the uncommitted changes to the file
+                Assert.ThrowsExactly<InvalidOperationException>(() => rootStorage.Flush(true));
+
+                // The rejected consolidation must not invalidate open objects
+                stream.WriteByte(2);
+                Assert.AreEqual(2, stream.Length);
+
+                rootStorage.Revert();
+
+                // Without pending changes, consolidation replaces the context and releases its transaction overlay
+                RootContext replacedContext = rootStorage.Context;
+                rootStorage.Flush(true);
+                Assert.IsTrue(replacedContext.IsDisposed);
+                Assert.IsTrue(rootStorage.CanCommit);
+            }
+
+            using (var rootStorage = RootStorage.OpenRead(fileName, StorageModeFlags.StrictValidation))
+            {
+                Assert.IsTrue(rootStorage.Validate());
+                Assert.AreEqual("Committed", Assert.ContainsSingle(rootStorage.EnumerateEntries()).Name);
+            }
+        }
+        finally
+        {
+            TestFile.TryDelete(fileName);
+        }
+    }
+
+    [TestMethod]
+    [DataRow(Version.V3)]
+    [DataRow(Version.V4)]
     public void ModifyAfterRevert(Version version)
     {
         byte[] data = TestData.CreateByteArray(5000);
