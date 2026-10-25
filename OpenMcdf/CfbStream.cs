@@ -8,19 +8,23 @@ public sealed class CfbStream : Stream
     private readonly RootContextSite rootContextSite;
     private readonly uint directoryEntryId;
     private readonly int generation;
+    private readonly int entryDeletionCount;
     private Stream stream;
     private bool isDisposed;
 
     long MaxStreamLength => this.rootContextSite.Context.MaxStreamLength;
 
-    // Consolidation rewrites the directory entries and sector chains, so the stream no longer refers to its data
-    bool IsInvalidated => generation != rootContextSite.Generation;
+    // Consolidation rewrites the directory entries and sector chains, and deleting the stream frees its sectors and
+    // recycles its entry, so the stream no longer refers to its data
+    bool IsInvalidated => generation != rootContextSite.Generation
+        || entryDeletionCount != rootContextSite.GetEntryDeletionCount(directoryEntryId);
 
     internal CfbStream(RootContextSite rootContextSite, DirectoryEntry directoryEntry, Storage parent)
     {
         this.rootContextSite = rootContextSite;
         directoryEntryId = directoryEntry.Id;
         generation = rootContextSite.Generation;
+        entryDeletionCount = rootContextSite.GetEntryDeletionCount(directoryEntryId);
         Parent = parent;
         stream = directoryEntry.StreamLength < Header.MiniStreamCutoffSize
             ? new MiniFatStream(rootContextSite, directoryEntry)

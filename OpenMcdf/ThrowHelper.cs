@@ -19,7 +19,7 @@ internal static class ThrowHelper
     public static void ThrowIfInvalidated(this object instance, bool invalidated)
     {
         if (invalidated)
-            throw new InvalidOperationException($"The {instance.GetType().Name} is no longer valid because the root storage was consolidated.");
+            throw new InvalidOperationException($"The {instance.GetType().Name} is no longer valid because it was deleted or the root storage was consolidated.");
     }
 
     public static void ThrowIfStreamArgumentsAreInvalid(byte[] buffer, int offset, int count)

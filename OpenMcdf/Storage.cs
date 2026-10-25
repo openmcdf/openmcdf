@@ -10,6 +10,7 @@ public class Storage : ContextBase
     readonly string path;
     readonly DirectoryTree directoryTree;
     readonly uint directoryEntryId;
+    readonly int entryDeletionCount;
     int generation;
 
     public Storage? Parent { get; }
@@ -23,12 +24,15 @@ public class Storage : ContextBase
         directoryTree = new(rootContextSite, directoryEntry.Id);
         directoryEntryId = directoryEntry.Id;
         generation = rootContextSite.Generation;
+        entryDeletionCount = rootContextSite.GetEntryDeletionCount(directoryEntryId);
         Parent = parent;
         path = parent is null ? $"/" : $"{parent.path}{parent.EntryInfo.Name}/";
     }
 
-    // Consolidation rewrites the directory entries, so the ID may refer to a different entry
-    bool IsInvalidated => generation != ContextSite.Generation;
+    // Consolidation rewrites the directory entries, and deleting the storage recycles its entry,
+    // so the ID may refer to a different entry
+    bool IsInvalidated => generation != ContextSite.Generation
+        || entryDeletionCount != ContextSite.GetEntryDeletionCount(directoryEntryId);
 
     // The root entry ID is unchanged by consolidation, so the root storage remains valid
     private protected void Revalidate() => generation = ContextSite.Generation;
@@ -466,6 +470,7 @@ public class Storage : ContextBase
         }
 
         directoryTree.Remove(entry);
+        ContextSite.InvalidateEntry(entry.Id);
     }
 
     [ExcludeFromCodeCoverage]
