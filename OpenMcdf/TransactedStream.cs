@@ -31,6 +31,11 @@ internal sealed class TransactedStream : Stream
 
     public Stream OverlayStream { get; }
 
+    /// <summary>
+    /// Gets a value indicating whether there are modifications that have not been committed or reverted.
+    /// </summary>
+    public bool IsDirty => dirtySectorPositions.Count > 0;
+
     public override bool CanRead => true;
 
     public override bool CanSeek => true;

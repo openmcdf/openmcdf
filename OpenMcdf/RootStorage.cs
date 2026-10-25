@@ -324,6 +324,7 @@ public sealed class RootStorage : Storage, IDisposable
     /// Flushes changes to the underlying stream. Optionally consolidates the file.
     /// </summary>
     /// <param name="consolidate">If true, consolidates the file after flushing.</param>
+    /// <exception cref="InvalidOperationException">Consolidating a transacted storage that has uncommitted changes.</exception>
     public void Flush(bool consolidate = false)
     {
         this.ThrowIfDisposed(Context.IsDisposed);
@@ -339,7 +340,12 @@ public sealed class RootStorage : Storage, IDisposable
         // Reject before invalidating open objects, since the base stream cannot be overwritten
         Context.ThrowIfNotWritable();
 
+        // Consolidation overwrites the base stream directly, which would commit the pending changes
+        if (Context.HasUncommittedChanges)
+            throw new InvalidOperationException("Commit or revert the changes to a transacted storage before consolidating it.");
+
         // TODO: Consolidate by defragmentation instead of copy
+        RootContext consolidatedContext = Context;
         Stream baseStream = Context.BaseStream;
         Stream? destinationStream = null;
 
@@ -365,6 +371,9 @@ public sealed class RootStorage : Storage, IDisposable
             Revalidate();
 
             destinationStream.CopyAllTo(baseStream);
+
+            // Release the transaction overlay of the replaced context, without flushing its stale caches
+            consolidatedContext.Discard();
 
             IOContextFlags contextFlags = ToIOContextFlags(storageModeFlags);
             _ = new RootContext(ContextSite, baseStream, Version.Unknown, contextFlags);
