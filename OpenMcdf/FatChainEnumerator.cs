@@ -159,7 +159,8 @@ internal sealed class FatChainEnumerator : ContextBase, IEnumerator<uint>
         if (chainLength >= requiredChainLength)
             throw new ArgumentException("The chain is already longer than required.", nameof(requiredChainLength));
 
-        if (startId == StreamId.NoStream)
+        // Empty chains start with either NoStream or EndOfChain, which the reference implementation writes
+        if (SectorType.IsFreeOrEndOfChain(startId))
         {
             startId = Fat.Add(fatEnumerator, 0);
             chainLength = 1;
@@ -185,7 +186,7 @@ internal sealed class FatChainEnumerator : ContextBase, IEnumerator<uint>
 
     public uint ExtendFrom(uint hintId)
     {
-        if (startId == SectorType.EndOfChain)
+        if (SectorType.IsFreeOrEndOfChain(startId))
         {
             startId = Fat.Add(fatEnumerator, hintId);
             return startId;

@@ -145,7 +145,8 @@ internal sealed class MiniFatChainEnumerator : ContextBase, IEnumerator<uint>
         if (chainLength >= requiredChainLength)
             throw new ArgumentException("The chain is already longer than required.", nameof(requiredChainLength));
 
-        if (startId == StreamId.NoStream)
+        // Empty chains start with either NoStream or EndOfChain, which the reference implementation writes
+        if (SectorType.IsFreeOrEndOfChain(startId))
         {
             startId = Context.MiniFat.Add(miniFatEnumerator, 0);
             chainLength = 1;

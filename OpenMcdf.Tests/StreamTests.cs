@@ -56,6 +56,52 @@ public sealed class StreamTests
     }
 
     [TestMethod]
+    [DataRow(Version.V3, 0, 100)] // Empty stream and root start with EndOfChain
+    [DataRow(Version.V3, 0, 5000)]
+    [DataRow(Version.V3, 4096, 100)] // Root starts with EndOfChain
+    [DataRow(Version.V4, 0, 100)]
+    [DataRow(Version.V4, 0, 5000)]
+    [DataRow(Version.V4, 4096, 100)]
+    public void WriteToFileWithEndOfChainStartSectors(Version version, int existingLength, int length)
+    {
+        // Files written by the reference implementation start empty chains with EndOfChain instead of NoStream
+        byte[] data = TestData.CreateByteArray(length);
+        using MemoryStream memoryStream = TestData.CreateMemoryStreamFromFile($"TestStream_v{(int)version}_{existingLength}.cfs");
+        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.LeaveOpen))
+        {
+            using (CfbStream stream = rootStorage.OpenStream("TestStream"))
+            {
+                stream.Seek(0, SeekOrigin.End);
+                stream.Write(data, 0, data.Length);
+            }
+
+            using (CfbStream stream = rootStorage.CreateStream("Added"))
+                stream.Write(data, 0, data.Length);
+        }
+
+        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.StrictValidation))
+        {
+            Assert.IsTrue(rootStorage.Validate());
+
+            byte[] expected = [.. TestData.CreateByteArray(existingLength), .. data];
+            using (CfbStream stream = rootStorage.OpenStream("TestStream"))
+            {
+                byte[] actual = new byte[expected.Length];
+                Assert.AreEqual(expected.Length, stream.Length);
+                stream.ReadExactly(actual);
+                CollectionAssert.AreEqual(expected, actual);
+            }
+
+            using (CfbStream stream = rootStorage.OpenStream("Added"))
+            {
+                byte[] actual = new byte[data.Length];
+                stream.ReadExactly(actual);
+                CollectionAssert.AreEqual(data, actual);
+            }
+        }
+    }
+
+    [TestMethod]
     [DynamicData(nameof(TestData.ShortVersionsAndSizes), typeof(TestData))]
     public void ReadViaCopyTo(Version version, int length)
     {
