@@ -23,7 +23,7 @@ public sealed class EnumeratorTests
     {
         for (uint id = 1; id < 16; id++)
         {
-            DirectoryEntry entry = root.Context.DirectoryEntries.GetDictionaryEntry(id);
+            DirectoryEntry entry = root.Context.DirectoryEntries.GetDirectoryEntry(id);
             if (entry.NameString == "stream")
                 return entry.StartSectorId;
         }
@@ -445,7 +445,7 @@ public sealed class EnumeratorTests
     public void MiniFatChainEnumerator_InvalidSectorId()
     {
         using RootStorage root = CreateRoot(100);
-        uint start = root.Context.DirectoryEntries.GetDictionaryEntry(1).StartSectorId;
+        uint start = root.Context.DirectoryEntries.GetDirectoryEntry(1).StartSectorId;
         MiniFat miniFat = root.Context.MiniFat;
         uint original = miniFat[start];
         try
@@ -465,7 +465,7 @@ public sealed class EnumeratorTests
     public void MiniFatChainEnumerator_Loop()
     {
         using RootStorage root = CreateRoot(300);
-        uint start = root.Context.DirectoryEntries.GetDictionaryEntry(1).StartSectorId;
+        uint start = root.Context.DirectoryEntries.GetDirectoryEntry(1).StartSectorId;
         MiniFat miniFat = root.Context.MiniFat;
         List<uint> chain = [];
         using (MiniFatChainEnumerator chainEnumerator = new(root.ContextSite, start))
@@ -498,7 +498,7 @@ public sealed class EnumeratorTests
     public void MiniFatChainEnumerator_CurrentAndMoveTo()
     {
         using RootStorage root = CreateRoot(300);
-        uint start = root.Context.DirectoryEntries.GetDictionaryEntry(1).StartSectorId;
+        uint start = root.Context.DirectoryEntries.GetDirectoryEntry(1).StartSectorId;
         using MiniFatChainEnumerator enumerator = new(root.ContextSite, start);
         Assert.ThrowsExactly<InvalidOperationException>(() => _ = enumerator.Current);
         Assert.IsFalse(enumerator.MoveTo(1000));
@@ -511,7 +511,7 @@ public sealed class EnumeratorTests
     public void MiniFatChainEnumerator_ExtendAndShrinkValidateLength()
     {
         using RootStorage root = CreateRoot(100);
-        uint start = root.Context.DirectoryEntries.GetDictionaryEntry(1).StartSectorId;
+        uint start = root.Context.DirectoryEntries.GetDirectoryEntry(1).StartSectorId;
         using MiniFatChainEnumerator enumerator = new(root.ContextSite, start);
         uint length = (uint)enumerator.GetLength();
         Assert.ThrowsExactly<ArgumentException>(() => enumerator.Extend(length));

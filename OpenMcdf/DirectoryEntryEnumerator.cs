@@ -45,7 +45,7 @@ internal sealed class DirectoryEntryEnumerator : IEnumerator<DirectoryEntry>
         }
 
         uint nextIndex = index + 1;
-        if (!directories.TryGetDictionaryEntry(nextIndex, false, out current))
+        if (!directories.TryGetDirectoryEntry(nextIndex, false, out current))
         {
             index = uint.MaxValue;
             return false;

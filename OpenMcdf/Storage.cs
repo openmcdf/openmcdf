@@ -42,7 +42,7 @@ public class Storage : ContextBase
     {
         this.ThrowIfInvalidated(IsInvalidated);
 
-        return Context.DirectoryEntries.GetDictionaryEntry(directoryEntryId);
+        return Context.DirectoryEntries.GetDirectoryEntry(directoryEntryId);
     }
 
     void UpdateDirectoryEntry(Action<DirectoryEntry> update)
@@ -436,7 +436,7 @@ public class Storage : ContextBase
         while (storages.Count > 0)
         {
             Storage storage = storages.Peek();
-            if (!Context.DirectoryEntries.TryGetDictionaryEntry(storage.GetDirectoryEntry().ChildId, true, out DirectoryEntry? child))
+            if (!Context.DirectoryEntries.TryGetDirectoryEntry(storage.GetDirectoryEntry().ChildId, true, out DirectoryEntry? child))
             {
                 storages.Pop();
             }

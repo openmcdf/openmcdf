@@ -70,10 +70,10 @@ internal sealed class DirectoryTreeEnumerator : ContextBase, IEnumerator<Directo
         current = null;
         stack.Clear();
         validator.Reset();
-        DirectoryEntry root = Directories.GetDictionaryEntry(rootId);
+        DirectoryEntry root = Directories.GetDirectoryEntry(rootId);
         if (root.ChildId != StreamId.NoStream)
         {
-            DirectoryEntry child = Directories.GetDictionaryEntry(root.ChildId);
+            DirectoryEntry child = Directories.GetDirectoryEntry(root.ChildId);
             PushLeft(child);
         }
     }
