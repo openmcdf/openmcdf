@@ -61,7 +61,7 @@ internal sealed class FatEnumerator : ContextBase, IEnumerator<FatEntry>
 
         if (Context.Fat.TryGetValue(index, out value))
         {
-            if (value < SectorType.Maximum && value >= Context.SectorCount)
+            if (value <= SectorType.Maximum && value >= Context.SectorCount)
                 throw new FileFormatException($"FAT entry #{index} for sector {value} is beyond the end of the stream.");
             this.index = index;
             return true;
