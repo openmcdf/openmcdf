@@ -260,6 +260,10 @@ public sealed class EnumeratorTests
             fat[start] = root.Context.SectorCount + 1000;
             using FatEnumerator enumerator = new(root.ContextSite);
             Assert.ThrowsExactly<FileFormatException>(() => enumerator.MoveTo(start));
+
+            fat[start] = SectorType.Maximum;
+            using FatEnumerator maximumEnumerator = new(root.ContextSite);
+            Assert.ThrowsExactly<FileFormatException>(() => maximumEnumerator.MoveTo(start));
         }
         finally
         {
