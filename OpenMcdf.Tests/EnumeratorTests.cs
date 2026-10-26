@@ -371,6 +371,24 @@ public sealed class EnumeratorTests
     }
 
     [TestMethod]
+    public void FatChainEnumerator_ExtendFromUpdatesLength()
+    {
+        using RootStorage root = CreateRoot();
+        uint start = GetStartSectorId(root);
+        using FatChainEnumerator enumerator = new(root.ContextSite, start);
+        long length = enumerator.GetLength();
+
+        enumerator.ExtendFrom(0);
+        Assert.AreEqual(length + 1, enumerator.GetLength());
+
+        enumerator.ExtendFrom(0);
+        Assert.AreEqual(length + 2, enumerator.GetLength());
+
+        enumerator.Shrink((uint)length);
+        Assert.AreEqual(length, enumerator.GetLength());
+    }
+
+    [TestMethod]
     public void MiniFat_MissingKey()
     {
         using RootStorage root = CreateRoot(100);
