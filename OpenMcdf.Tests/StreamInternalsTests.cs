@@ -36,7 +36,7 @@ public sealed class StreamInternalsTests
     {
         for (uint id = 1; id < 16; id++)
         {
-            DirectoryEntry entry = root.Context.DirectoryEntries.GetDictionaryEntry(id);
+            DirectoryEntry entry = root.Context.DirectoryEntries.GetDirectoryEntry(id);
             if (entry.NameString == name)
                 return entry;
         }
@@ -376,9 +376,9 @@ public sealed class StreamInternalsTests
     {
         using RootStorage root = CreateRoot(out _, out _, out _);
         DirectoryEntries entries = root.Context.DirectoryEntries;
-        Assert.ThrowsExactly<FileFormatException>(() => entries.GetDictionaryEntry(1000));
-        Assert.ThrowsExactly<FileFormatException>(() => entries.TryGetDictionaryEntry(1000, true, out _));
-        Assert.IsFalse(entries.TryGetDictionaryEntry(1000, false, out DirectoryEntry? entry));
+        Assert.ThrowsExactly<FileFormatException>(() => entries.GetDirectoryEntry(1000));
+        Assert.ThrowsExactly<FileFormatException>(() => entries.TryGetDirectoryEntry(1000, true, out _));
+        Assert.IsFalse(entries.TryGetDirectoryEntry(1000, false, out DirectoryEntry? entry));
         Assert.IsNull(entry);
         DirectoryEntry missing = new() { Id = 1000 };
         Assert.ThrowsExactly<FileFormatException>(() => entries.Write(missing));

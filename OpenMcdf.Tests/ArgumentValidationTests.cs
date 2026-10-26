@@ -62,7 +62,7 @@ public sealed class ArgumentValidationTests
         {
         }
 
-        DirectoryEntry entry = root.Context.DirectoryEntries.GetDictionaryEntry(1);
+        DirectoryEntry entry = root.Context.DirectoryEntries.GetDirectoryEntry(1);
         Assert.AreEqual(StorageType.Stream, entry.Type);
         Assert.ThrowsExactly<ArgumentException>(() => new Storage(root.ContextSite, entry, root));
     }

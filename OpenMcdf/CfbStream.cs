@@ -60,7 +60,7 @@ public sealed class CfbStream : Stream
 
             EntryInfo parentEntryInfo = Parent.EntryInfo;
             string path = $"{parentEntryInfo.Path}{parentEntryInfo.Name}";
-            DirectoryEntry entry = rootContextSite.Context.DirectoryEntries.GetDictionaryEntry(directoryEntryId);
+            DirectoryEntry entry = rootContextSite.Context.DirectoryEntries.GetDirectoryEntry(directoryEntryId);
             entry.StreamLength = stream.Length; // The stream may not have been flushed yet
             return entry.ToEntryInfo(path);
         }

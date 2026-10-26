@@ -49,11 +49,11 @@ internal sealed class DirectoryEntries : ContextBase, IDisposable
     /// <summary>
     /// Gets the <see cref="DirectoryEntry"/> for the specified stream ID.
     /// </summary>
-    public DirectoryEntry GetDictionaryEntry(uint streamId)
+    public DirectoryEntry GetDirectoryEntry(uint streamId)
     {
         ThrowHelper.ThrowIfDirectoryEntryStreamIdIsInvalid(streamId);
 
-        DirectoryEntry? entry = TryGetDictionaryEntryCore(streamId);
+        DirectoryEntry? entry = TryGetDirectoryEntryCore(streamId);
         if (entry is null)
             ThrowHelper.ThrowDirectoryEntryNotFound(streamId);
         return entry;
@@ -62,9 +62,9 @@ internal sealed class DirectoryEntries : ContextBase, IDisposable
     /// <summary>
     /// Gets the <see cref="DirectoryEntry"/> for the root storage.
     /// </summary>
-    public DirectoryEntry GetRootEntry() => GetDictionaryEntry(StreamId.Root);
+    public DirectoryEntry GetRootEntry() => GetDirectoryEntry(StreamId.Root);
 
-    public bool TryGetDictionaryEntry(uint streamId, bool throwIfNotFound, [MaybeNullWhen(false)] out DirectoryEntry entry)
+    public bool TryGetDirectoryEntry(uint streamId, bool throwIfNotFound, [MaybeNullWhen(false)] out DirectoryEntry entry)
     {
         if (streamId == StreamId.NoStream)
         {
@@ -74,13 +74,13 @@ internal sealed class DirectoryEntries : ContextBase, IDisposable
 
         ThrowHelper.ThrowIfDirectoryEntryStreamIdIsInvalid(streamId);
 
-        entry = TryGetDictionaryEntryCore(streamId);
+        entry = TryGetDirectoryEntryCore(streamId);
         if (entry is null && throwIfNotFound)
             ThrowHelper.ThrowDirectoryEntryNotFound(streamId);
         return entry is not null;
     }
 
-    DirectoryEntry? TryGetDictionaryEntryCore(uint streamId)
+    DirectoryEntry? TryGetDirectoryEntryCore(uint streamId)
     {
         uint chainIndex = GetChainIndexAndEntryIndex(streamId, out long entryIndex);
         if (!fatChainEnumerator.MoveTo(chainIndex))
@@ -96,7 +96,7 @@ internal sealed class DirectoryEntries : ContextBase, IDisposable
     public DirectoryEntry? TryGetSibling(DirectoryEntry entry, SiblingType siblingType, IDirectoryTreeValidator validator)
     {
         uint siblingId = entry.GetSiblingId(siblingType);
-        if (!TryGetDictionaryEntry(siblingId, true, out DirectoryEntry? sibling))
+        if (!TryGetDirectoryEntry(siblingId, true, out DirectoryEntry? sibling))
             return null;
 
         validator.Validate(entry, sibling, siblingType);
@@ -106,7 +106,7 @@ internal sealed class DirectoryEntries : ContextBase, IDisposable
     public DirectoryEntry GetSibling(DirectoryEntry entry, SiblingType siblingType, IDirectoryTreeValidator validator)
     {
         uint siblingId = entry.GetSiblingId(siblingType);
-        DirectoryEntry sibling = GetDictionaryEntry(siblingId);
+        DirectoryEntry sibling = GetDirectoryEntry(siblingId);
         validator.Validate(entry, sibling, siblingType);
         return sibling;
     }
@@ -168,7 +168,7 @@ internal sealed class DirectoryEntries : ContextBase, IDisposable
     /// </summary>
     public void UpdateDirectoryEntry(uint streamId, uint startSectorId, long length)
     {
-        DirectoryEntry entry = GetDictionaryEntry(streamId);
+        DirectoryEntry entry = GetDirectoryEntry(streamId);
         entry.StartSectorId = startSectorId;
         entry.StreamLength = length;
         Write(entry);
