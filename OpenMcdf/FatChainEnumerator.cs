@@ -189,6 +189,8 @@ internal sealed class FatChainEnumerator : ContextBase, IEnumerator<uint>
         if (SectorType.IsFreeOrEndOfChain(startId))
         {
             startId = Fat.Add(fatEnumerator, hintId);
+            if (length != -1)
+                length = 1;
             return startId;
         }
 
@@ -202,6 +204,8 @@ internal sealed class FatChainEnumerator : ContextBase, IEnumerator<uint>
 
         uint id = Fat.Add(fatEnumerator, hintId);
         Fat[lastId] = id;
+        if (length != -1)
+            length++;
         return id;
     }
 
