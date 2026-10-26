@@ -200,7 +200,6 @@ internal sealed class MiniFatStream : Stream
     public override void Write(byte[] buffer, int offset, int count)
     {
         this.ThrowIfDisposed(isDisposed);
-        this.ThrowIfNotWritable();
 
         if (count == 0)
             return;
