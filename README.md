@@ -68,6 +68,7 @@ To create or delete storages and streams:
 using var root = RootStorage.Create("test.cfb");
 root.CreateStorage("MyStorage");
 root.CreateStream("MyStream");
+//
 root.Delete("MyStream");
 ```
 

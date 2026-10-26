@@ -20,8 +20,8 @@ If you are using an older release, upgrade to the latest stable package before r
 Please report suspected vulnerabilities privately.
 
 1. Use GitHub Security Advisories (preferred):
-   - https://github.com/ironfede/openmcdf/security/advisories/new
-2. If advisory submission is not possible, open a private discussion with maintainers (jeremy@visionaid.com).
+   - <https://github.com/ironfede/openmcdf/security/advisories/new>
+2. If advisory submission is not possible, open a private discussion with maintainers (<jeremy@visionaid.com>).
 
 Please do not report security vulnerabilities in public issues.
 
