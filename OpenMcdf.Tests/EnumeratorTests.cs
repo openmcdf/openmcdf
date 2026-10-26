@@ -157,6 +157,7 @@ public sealed class EnumeratorTests
         {
             using FatSectorEnumerator enumerator = new(root.ContextSite);
             Assert.ThrowsExactly<FileFormatException>(() => enumerator.MoveTo(0));
+            Assert.ThrowsExactly<FileFormatException>(() => enumerator.MoveTo(0));
         }
         finally
         {
@@ -183,6 +184,7 @@ public sealed class EnumeratorTests
         writer.Write(uint.MaxValue);
         try
         {
+            Assert.ThrowsExactly<FileFormatException>(() => enumerator.MoveTo(Header.DifatArrayLength));
             Assert.ThrowsExactly<FileFormatException>(() => enumerator.MoveTo(Header.DifatArrayLength));
         }
         finally

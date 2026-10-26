@@ -72,16 +72,11 @@ internal sealed class FatSectorEnumerator : ContextBase, IEnumerator<Sector>
 
         if (index < Header.DifatArrayLength)
         {
-            this.index = index;
-            uint difatId = Context.Header.Difat[this.index];
+            uint difatId = Context.Header.Difat[index];
             ThrowIfFatSectorIdIsInvalid(difatId);
+            this.index = index;
             current = new(difatId, Context.SectorSize);
             return true;
-        }
-
-        if (index < this.index)
-        {
-            this.index = Header.DifatArrayLength;
         }
 
         uint difatChainIndex = GetDifatChainIndexAndDifatEntryIndex(index, out long difatElementIndex);
