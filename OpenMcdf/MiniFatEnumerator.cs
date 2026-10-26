@@ -7,7 +7,6 @@ namespace OpenMcdf;
 /// </summary>
 internal sealed class MiniFatEnumerator : ContextBase, IEnumerator<FatEntry>
 {
-    private readonly FatChainEnumerator fatChainEnumerator;
     private bool started = false;
     private uint index = uint.MaxValue;
     private uint value = uint.MaxValue;
@@ -15,13 +14,11 @@ internal sealed class MiniFatEnumerator : ContextBase, IEnumerator<FatEntry>
     public MiniFatEnumerator(RootContextSite rootContextSite)
         : base(rootContextSite)
     {
-        fatChainEnumerator = new(ContextSite, Context.Header.FirstMiniFatSectorId);
     }
 
     /// <inheritdoc/>
     public void Dispose()
     {
-        fatChainEnumerator.Dispose();
     }
 
     public MiniSector CurrentSector
@@ -95,7 +92,6 @@ internal sealed class MiniFatEnumerator : ContextBase, IEnumerator<FatEntry>
     /// <inheritdoc/>
     public void Reset()
     {
-        fatChainEnumerator.Reset(Context.Header.FirstMiniFatSectorId);
         started = false;
         index = uint.MaxValue;
         value = uint.MaxValue;
