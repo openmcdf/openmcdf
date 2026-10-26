@@ -145,6 +145,54 @@ public sealed class EnumeratorTests
     }
 
     [TestMethod]
+    [DataRow(uint.MaxValue)]
+    [DataRow(SectorType.Maximum)]
+    public void FatSectorEnumerator_MoveToInvalidHeaderDifatEntry(uint id)
+    {
+        using RootStorage root = CreateRoot();
+        Header header = root.Context.Header;
+        uint original = header.Difat[0];
+        header.Difat[0] = id;
+        try
+        {
+            using FatSectorEnumerator enumerator = new(root.ContextSite);
+            Assert.ThrowsExactly<FileFormatException>(() => enumerator.MoveTo(0));
+        }
+        finally
+        {
+            header.Difat[0] = original;
+        }
+    }
+
+    [TestMethod]
+    public void FatSectorEnumerator_MoveToInvalidDifatSectorEntry()
+    {
+        using RootStorage root = CreateRoot(DifatStreamLength);
+        using FatSectorEnumerator enumerator = new(root.ContextSite);
+
+        using DifatSectorEnumerator difatEnumerator = new(root.ContextSite);
+        Assert.IsTrue(difatEnumerator.MoveNext());
+        long position = difatEnumerator.Current.Position;
+
+        CfbBinaryReader reader = root.Context.Reader;
+        reader.Position = position;
+        uint original = reader.ReadUInt32();
+
+        CfbBinaryWriter writer = root.Context.Writer;
+        writer.Position = position;
+        writer.Write(uint.MaxValue);
+        try
+        {
+            Assert.ThrowsExactly<FileFormatException>(() => enumerator.MoveTo(Header.DifatArrayLength));
+        }
+        finally
+        {
+            writer.Position = position;
+            writer.Write(original);
+        }
+    }
+
+    [TestMethod]
     public void Fat_MissingKey()
     {
         using RootStorage root = CreateRoot();

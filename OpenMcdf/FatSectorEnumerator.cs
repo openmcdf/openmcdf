@@ -74,6 +74,7 @@ internal sealed class FatSectorEnumerator : ContextBase, IEnumerator<Sector>
         {
             this.index = index;
             uint difatId = Context.Header.Difat[this.index];
+            ThrowIfFatSectorIdIsInvalid(difatId);
             current = new(difatId, Context.SectorSize);
             return true;
         }
@@ -94,9 +95,16 @@ internal sealed class FatSectorEnumerator : ContextBase, IEnumerator<Sector>
         Sector difatSector = difatSectorEnumerator.Current;
         Context.Reader.Position = difatSector.Position + (difatElementIndex * sizeof(uint));
         uint id = Context.Reader.ReadUInt32();
+        ThrowIfFatSectorIdIsInvalid(id);
         this.index = index;
         current = new Sector(id, Context.SectorSize);
         return true;
+    }
+
+    private void ThrowIfFatSectorIdIsInvalid(uint id)
+    {
+        if (id >= Context.SectorCount)
+            throw new FileFormatException($"FAT sector ID {id:X8} is beyond the end of the stream.");
     }
 
     private uint GetDifatChainIndexAndDifatEntryIndex(uint index, out long difatElementIndex)
