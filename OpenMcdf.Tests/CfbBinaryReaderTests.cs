@@ -74,7 +74,8 @@ public sealed class CfbBinaryReaderTests
     [TestMethod]
     public void ReadHeader_Truncated()
     {
-        byte[] bytes = ReadHeaderBytes("TestStream_v3_0.cfs")[..^1];
+        byte[] bytes = ReadHeaderBytes("TestStream_v3_0.cfs");
+        Array.Resize(ref bytes, bytes.Length - 1);
         using MemoryStream stream = new(bytes);
         using CfbBinaryReader reader = new(stream);
 
