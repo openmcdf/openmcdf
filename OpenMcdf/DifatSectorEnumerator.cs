@@ -47,8 +47,15 @@ internal sealed class DifatSectorEnumerator : ContextBase, IEnumerator<Sector>
         else if (difatSectorId != SectorType.EndOfChain)
         {
             CfbBinaryReader reader = Context.Reader;
-            reader.Position = current.EndPosition - sizeof(uint);
-            difatSectorId = reader.ReadUInt32();
+            try
+            {
+                reader.Position = current.EndPosition - sizeof(uint);
+                difatSectorId = reader.ReadUInt32();
+            }
+            catch (EndOfStreamException exception)
+            {
+                throw new FileFormatException("DIFAT sector is truncated.", exception);
+            }
             if (difatSectorId != SectorType.EndOfChain)
                 ThrowHelper.ThrowIfSectorIdIsInvalid(difatSectorId);
         }

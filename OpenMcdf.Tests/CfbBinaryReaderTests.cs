@@ -72,6 +72,19 @@ public sealed class CfbBinaryReaderTests
     }
 
     [TestMethod]
+    public void ReadHeader_Truncated()
+    {
+        byte[] bytes = ReadHeaderBytes("TestStream_v3_0.cfs");
+        Array.Resize(ref bytes, bytes.Length - 1);
+        using MemoryStream stream = new(bytes);
+        using CfbBinaryReader reader = new(stream);
+
+        FileFormatException exception = Assert.ThrowsExactly<FileFormatException>(() => reader.ReadHeader());
+
+        Assert.IsInstanceOfType<EndOfStreamException>(exception.InnerException);
+    }
+
+    [TestMethod]
     public void ReadHeader_InvalidMajorVersion()
     {
         byte[] bytes = ReadHeaderBytes("TestStream_v3_0.cfs");
@@ -154,6 +167,22 @@ public sealed class CfbBinaryReaderTests
         DirectoryEntry v4 = ReadEntry(CreateEntryBytes(StorageType.Stream, v4: true, startSector: 3, streamLength: 10), Version.V4, true);
         Assert.AreEqual(10, v4.StreamLength);
         Assert.AreEqual(StorageType.Unallocated, ReadEntry(CreateEntryBytes(StorageType.Unallocated)).Type);
+    }
+
+    [TestMethod]
+    [DataRow(Version.V3, false)]
+    [DataRow(Version.V3, true)]
+    [DataRow(Version.V4, false)]
+    [DataRow(Version.V4, true)]
+    public void ReadDirectoryEntry_Truncated(Version version, bool strict)
+    {
+        byte[] bytes = CreateEntryBytes(StorageType.Stream, v4: version == Version.V4);
+        for (int length = 0; length < EntryLength; length++)
+        {
+            byte[] truncated = bytes.AsSpan(0, length).ToArray();
+            FileFormatException exception = Assert.ThrowsExactly<FileFormatException>(() => ReadEntry(truncated, version, strict));
+            Assert.IsInstanceOfType<EndOfStreamException>(exception.InnerException);
+        }
     }
 
     [TestMethod]

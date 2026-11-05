@@ -75,7 +75,14 @@ internal sealed class MiniFat : ContextBase, IEnumerable<FatEntry>, IDisposable
 
         Stream stream = Context.Stream;
         stream.Position = fatChainEnumerator.CurrentSector.Position;
-        stream.ReadExactly(cachedSectorBuffer, 0, cachedSectorBuffer.Length);
+        try
+        {
+            stream.ReadExactly(cachedSectorBuffer, 0, cachedSectorBuffer.Length);
+        }
+        catch (EndOfStreamException exception)
+        {
+            throw new FileFormatException("Mini FAT sector is truncated.", exception);
+        }
         return true;
     }
 

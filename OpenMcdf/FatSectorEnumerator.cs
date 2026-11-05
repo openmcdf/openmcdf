@@ -88,8 +88,16 @@ internal sealed class FatSectorEnumerator : ContextBase, IEnumerator<Sector>
         }
 
         Sector difatSector = difatSectorEnumerator.Current;
-        Context.Reader.Position = difatSector.Position + (difatElementIndex * sizeof(uint));
-        uint id = Context.Reader.ReadUInt32();
+        uint id;
+        try
+        {
+            Context.Reader.Position = difatSector.Position + (difatElementIndex * sizeof(uint));
+            id = Context.Reader.ReadUInt32();
+        }
+        catch (EndOfStreamException exception)
+        {
+            throw new FileFormatException("DIFAT sector is truncated.", exception);
+        }
         ThrowIfFatSectorIdIsInvalid(id);
         this.index = index;
         current = new Sector(id, Context.SectorSize);

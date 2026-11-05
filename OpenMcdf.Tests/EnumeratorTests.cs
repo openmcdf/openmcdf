@@ -40,6 +40,15 @@ public sealed class EnumeratorTests
         return chain;
     }
 
+    static byte[] CreateFileBytes(int streamLength)
+    {
+        using MemoryStream stream = new();
+        using (RootStorage root = RootStorage.Create(stream, Version.V3, StorageModeFlags.LeaveOpen))
+        using (CfbStream cfbStream = root.CreateStream("stream"))
+            cfbStream.Write(TestData.CreateByteArray(streamLength), 0, streamLength);
+        return stream.ToArray();
+    }
+
     [TestMethod]
     public void DifatSectorEnumerator_EmptyChain()
     {
@@ -145,6 +154,36 @@ public sealed class EnumeratorTests
     }
 
     [TestMethod]
+    public void FatSectorEnumerator_TruncatedDifatSector()
+    {
+        byte[] bytes = CreateFileBytes(DifatStreamLength);
+        using TruncatedReadMemoryStream stream = new(bytes);
+        using RootStorage root = RootStorage.Open(stream, StorageModeFlags.LeaveOpen);
+        stream.TruncateAt(new Sector(root.Context.Header.FirstDifatSectorId, root.Context.SectorSize).Position + sizeof(uint) / 2);
+        using FatSectorEnumerator enumerator = new(root.ContextSite);
+
+        FileFormatException exception = Assert.ThrowsExactly<FileFormatException>(() => enumerator.MoveTo(Header.DifatArrayLength));
+
+        Assert.IsInstanceOfType<EndOfStreamException>(exception.InnerException);
+    }
+
+    [TestMethod]
+    public void DifatSectorEnumerator_TruncatedSector()
+    {
+        byte[] bytes = CreateFileBytes(DifatStreamLength);
+        using TruncatedReadMemoryStream stream = new(bytes);
+        using RootStorage root = RootStorage.Open(stream, StorageModeFlags.LeaveOpen);
+        Sector difatSector = new(root.Context.Header.FirstDifatSectorId, root.Context.SectorSize);
+        stream.TruncateAt(difatSector.EndPosition - sizeof(uint) + sizeof(uint) / 2);
+        using DifatSectorEnumerator enumerator = new(root.ContextSite);
+        Assert.IsTrue(enumerator.MoveNext());
+
+        FileFormatException exception = Assert.ThrowsExactly<FileFormatException>(() => enumerator.MoveNext());
+
+        Assert.IsInstanceOfType<EndOfStreamException>(exception.InnerException);
+    }
+
+    [TestMethod]
     [DataRow(uint.MaxValue)]
     [DataRow(SectorType.Maximum)]
     public void FatSectorEnumerator_MoveToInvalidHeaderDifatEntry(uint id)
@@ -204,6 +243,36 @@ public sealed class EnumeratorTests
         Assert.IsFalse(fat.TrySetValue(missing, 0));
         Assert.ThrowsExactly<FileFormatException>(() => _ = fat[missing]);
         Assert.ThrowsExactly<FileFormatException>(() => fat[missing] = 0);
+    }
+
+    [TestMethod]
+    public void Fat_TruncatedSector()
+    {
+        byte[] bytes = CreateFileBytes(100_000);
+        using TruncatedReadMemoryStream stream = new(bytes);
+        using RootStorage root = RootStorage.Open(stream, StorageModeFlags.LeaveOpen);
+        uint fatSectorId = root.Context.Header.Difat[1];
+        stream.TruncateAt(new Sector(fatSectorId, root.Context.SectorSize).Position + sizeof(uint) / 2);
+
+        FileFormatException exception = Assert.ThrowsExactly<FileFormatException>(() =>
+            root.Context.Fat.TryGetValue((uint)root.Context.FatEntriesPerSector, out _));
+
+        Assert.IsInstanceOfType<EndOfStreamException>(exception.InnerException);
+    }
+
+    [TestMethod]
+    public void MiniFat_TruncatedSector()
+    {
+        byte[] bytes = CreateFileBytes(100);
+        using TruncatedReadMemoryStream stream = new(bytes);
+        using RootStorage root = RootStorage.Open(stream, StorageModeFlags.LeaveOpen);
+        uint miniFatSectorId = root.Context.Header.FirstMiniFatSectorId;
+        stream.TruncateAt(new Sector(miniFatSectorId, root.Context.SectorSize).Position + sizeof(uint) / 2);
+
+        FileFormatException exception = Assert.ThrowsExactly<FileFormatException>(() =>
+            root.Context.MiniFat.TryGetValue(0, out _));
+
+        Assert.IsInstanceOfType<EndOfStreamException>(exception.InnerException);
     }
 
     [TestMethod]
@@ -574,5 +643,27 @@ public sealed class EnumeratorTests
         DirectoryTree tree = new(root.ContextSite, StreamId.Root);
         Assert.IsFalse(tree.TryGetDirectoryEntry("missing", out DirectoryEntry? entry));
         Assert.IsNull(entry);
+    }
+
+    sealed class TruncatedReadMemoryStream : MemoryStream
+    {
+        long truncatedAt = long.MaxValue;
+
+        public TruncatedReadMemoryStream(byte[] buffer)
+            : base(buffer, writable: false)
+        {
+        }
+
+        public void TruncateAt(long position) => truncatedAt = position;
+
+        public override int Read(byte[] buffer, int offset, int count)
+            => base.Read(buffer, offset, (int)Math.Min(count, Math.Max(0, truncatedAt - Position)));
+
+#if NET8_0_OR_GREATER
+        public override int Read(Span<byte> buffer)
+            => base.Read(buffer[..(int)Math.Min(buffer.Length, Math.Max(0, truncatedAt - Position))]);
+#endif
+
+        public override int ReadByte() => Position < truncatedAt ? base.ReadByte() : -1;
     }
 }

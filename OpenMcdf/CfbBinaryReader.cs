@@ -35,6 +35,18 @@ internal sealed class CfbBinaryReader : BinaryReader
 
     public Header ReadHeader()
     {
+        try
+        {
+            return ReadHeaderCore();
+        }
+        catch (EndOfStreamException exception)
+        {
+            throw new FileFormatException("Header is truncated.", exception);
+        }
+    }
+
+    Header ReadHeaderCore()
+    {
         Header header = new();
         ReadExactly(buffer, 0, Header.Signature.Length);
         Span<byte> signature = buffer.AsSpan(0, Header.Signature.Length);
@@ -96,32 +108,40 @@ internal sealed class CfbBinaryReader : BinaryReader
         if (version is not Version.V3 and not Version.V4)
             throw new ArgumentException($"Unsupported version: {version}.", nameof(version));
 
-        ReadExactly(buffer, 0, DirectoryEntry.NameFieldLength);
-
-        DirectoryEntry entry = new()
+        DirectoryEntry entry;
+        try
         {
-            Id = sid,
-            NameLength = ReadUInt16(),
-            Type = ReadStorageType(),
-            Color = ReadColor(),
-            LeftSiblingId = ReadUInt32(),
-            RightSiblingId = ReadUInt32(),
-            ChildId = ReadUInt32(),
-            CLSID = ReadGuid(),
-            StateBits = ReadUInt32(),
-            CreationTime = ReadUInt64(),
-            ModifiedTime = ReadUInt64(),
-            StartSectorId = ReadUInt32(),
-        };
+            ReadExactly(buffer, 0, DirectoryEntry.NameFieldLength);
 
-        if (version == Version.V3)
-        {
-            entry.StreamLength = ReadUInt32();
-            BaseStream.Seek(4, SeekOrigin.Current); // Skip unused 4 bytes
+            entry = new()
+            {
+                Id = sid,
+                NameLength = ReadUInt16(),
+                Type = ReadStorageType(),
+                Color = ReadColor(),
+                LeftSiblingId = ReadUInt32(),
+                RightSiblingId = ReadUInt32(),
+                ChildId = ReadUInt32(),
+                CLSID = ReadGuid(),
+                StateBits = ReadUInt32(),
+                CreationTime = ReadUInt64(),
+                ModifiedTime = ReadUInt64(),
+                StartSectorId = ReadUInt32(),
+            };
+
+            if (version == Version.V3)
+            {
+                entry.StreamLength = ReadUInt32();
+                ReadUInt32(); // Read unused 4 bytes
+            }
+            else if (version == Version.V4)
+            {
+                entry.StreamLength = ReadInt64();
+            }
         }
-        else if (version == Version.V4)
+        catch (EndOfStreamException exception)
         {
-            entry.StreamLength = ReadInt64();
+            throw new FileFormatException("Directory entry is truncated.", exception);
         }
 
         buffer.CopyTo(entry.Name, 0);
