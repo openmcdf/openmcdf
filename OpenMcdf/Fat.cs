@@ -54,6 +54,19 @@ internal sealed class Fat : ContextBase, IEnumerable<FatEntry>, IDisposable
         }
     }
 
+    private static void ReadSector(Stream stream, long position, byte[] buffer)
+    {
+        stream.Position = position;
+        try
+        {
+            stream.ReadExactly(buffer, 0, buffer.Length);
+        }
+        catch (EndOfStreamException exception)
+        {
+            throw new FileFormatException("FAT sector is truncated.", exception);
+        }
+    }
+
     uint GetSectorIndexAndElementOffset(uint key, out long elementIndex) => (uint)Math.DivRem(key, Context.FatEntriesPerSector, out elementIndex);
 
     void CacheCurrentSector()
@@ -64,9 +77,7 @@ internal sealed class Fat : ContextBase, IEnumerable<FatEntry>, IDisposable
 
         Flush();
 
-        Stream stream = Context.Stream;
-        stream.Position = current.Position;
-        stream.ReadExactly(cachedSectorBuffer, 0, cachedSectorBuffer.Length);
+        ReadSector(Context.Stream, current.Position, cachedSectorBuffer);
         cachedSector = current;
     }
 
@@ -189,8 +200,7 @@ internal sealed class Fat : ContextBase, IEnumerable<FatEntry>, IDisposable
             else
             {
                 usedCount++;
-                baseStream.Position = sector.Position;
-                baseStream.ReadExactly(data, 0, data.Length);
+                ReadSector(baseStream, sector.Position, data);
                 string hex = BitConverter.ToString(data);
                 writer.WriteLine($"{entry}: {hex}");
             }
