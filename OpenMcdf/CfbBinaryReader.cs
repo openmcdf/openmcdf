@@ -35,6 +35,18 @@ internal sealed class CfbBinaryReader : BinaryReader
 
     public Header ReadHeader()
     {
+        try
+        {
+            return ReadHeaderCore();
+        }
+        catch (EndOfStreamException exception)
+        {
+            throw new FileFormatException("Header is truncated.", exception);
+        }
+    }
+
+    Header ReadHeaderCore()
+    {
         Header header = new();
         ReadExactly(buffer, 0, Header.Signature.Length);
         Span<byte> signature = buffer.AsSpan(0, Header.Signature.Length);

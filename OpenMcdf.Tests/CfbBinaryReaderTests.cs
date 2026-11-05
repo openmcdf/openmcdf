@@ -72,6 +72,18 @@ public sealed class CfbBinaryReaderTests
     }
 
     [TestMethod]
+    public void ReadHeader_Truncated()
+    {
+        byte[] bytes = ReadHeaderBytes("TestStream_v3_0.cfs")[..^1];
+        using MemoryStream stream = new(bytes);
+        using CfbBinaryReader reader = new(stream);
+
+        FileFormatException exception = Assert.ThrowsExactly<FileFormatException>(() => reader.ReadHeader());
+
+        Assert.IsInstanceOfType<EndOfStreamException>(exception.InnerException);
+    }
+
+    [TestMethod]
     public void ReadHeader_InvalidMajorVersion()
     {
         byte[] bytes = ReadHeaderBytes("TestStream_v3_0.cfs");
