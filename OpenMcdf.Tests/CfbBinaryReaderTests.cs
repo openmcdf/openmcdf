@@ -157,6 +157,22 @@ public sealed class CfbBinaryReaderTests
     }
 
     [TestMethod]
+    [DataRow(Version.V3, false)]
+    [DataRow(Version.V3, true)]
+    [DataRow(Version.V4, false)]
+    [DataRow(Version.V4, true)]
+    public void ReadDirectoryEntry_Truncated(Version version, bool strict)
+    {
+        byte[] bytes = CreateEntryBytes(StorageType.Stream, v4: version == Version.V4);
+        for (int length = 0; length < EntryLength; length++)
+        {
+            byte[] truncated = bytes.AsSpan(0, length).ToArray();
+            FileFormatException exception = Assert.ThrowsExactly<FileFormatException>(() => ReadEntry(truncated, version, strict));
+            Assert.IsInstanceOfType<EndOfStreamException>(exception.InnerException);
+        }
+    }
+
+    [TestMethod]
     public void ReadDirectoryEntry_InvalidType()
     {
         Assert.ThrowsExactly<FileFormatException>(() => ReadEntry(CreateEntryBytes((StorageType)3)));

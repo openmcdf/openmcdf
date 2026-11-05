@@ -54,6 +54,37 @@ public sealed class RootStorageTests
     }
 
     [TestMethod]
+    [DataRow(Version.V3, 127)]
+    [DataRow(Version.V3, 200)]
+    [DataRow(Version.V3, 508)]
+    [DataRow(Version.V4, 127)]
+    [DataRow(Version.V4, 200)]
+    [DataRow(Version.V4, 508)]
+    public void TruncatedDirectorySectorThrowsFileFormatException(Version version, int directoryLength)
+    {
+        using MemoryStream createStream = new();
+        using (var rootStorage = RootStorage.Create(createStream, version, StorageModeFlags.LeaveOpen))
+        {
+            for (int i = 0; i < 20; i++)
+            {
+                using CfbStream stream = rootStorage.CreateStream($"Stream{i}");
+                stream.Write(new byte[8192], 0, 8192);
+            }
+        }
+
+        byte[] bytes = createStream.ToArray();
+        uint firstDirectorySector = BitConverter.ToUInt32(bytes, 0x30);
+        int sectorSize = version == Version.V3 ? 512 : 4096;
+        int truncatedLength = checked((int)((firstDirectorySector + 1) * sectorSize) + directoryLength);
+        using MemoryStream readStream = new(bytes.AsSpan(0, truncatedLength).ToArray(), writable: false);
+        Assert.ThrowsExactly<FileFormatException>(() =>
+        {
+            using var rootStorage = RootStorage.Open(readStream);
+            rootStorage.EnumerateEntries().ToArray();
+        });
+    }
+
+    [TestMethod]
     public void OpenWithStrictValidationThrowsWhenStreamLengthExceedsMaximum()
     {
         long length = RootContext.MaximumV3StreamLength + 1;
