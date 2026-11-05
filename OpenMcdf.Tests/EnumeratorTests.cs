@@ -659,8 +659,10 @@ public sealed class EnumeratorTests
         public override int Read(byte[] buffer, int offset, int count)
             => base.Read(buffer, offset, (int)Math.Min(count, Math.Max(0, truncatedAt - Position)));
 
+#if NET8_0_OR_GREATER
         public override int Read(Span<byte> buffer)
             => base.Read(buffer[..(int)Math.Min(buffer.Length, Math.Max(0, truncatedAt - Position))]);
+#endif
 
         public override int ReadByte() => Position < truncatedAt ? base.ReadByte() : -1;
     }
