@@ -486,6 +486,42 @@ public sealed class StorageTests
     [TestMethod]
     [DataRow(Version.V3)]
     [DataRow(Version.V4)]
+    public void DeleteStorageResetsRecycledEntryMetadata(Version version)
+    {
+        using MemoryStream memoryStream = new();
+        var guid = Guid.NewGuid();
+
+        using (var rootStorage = RootStorage.Create(memoryStream, version, StorageModeFlags.LeaveOpen))
+        {
+            Storage deleted = rootStorage.CreateStorage("Deleted");
+            deleted.CLSID = guid;
+            deleted.StateBits = 0x12345678U;
+
+            rootStorage.Delete("Deleted");
+
+            DirectoryEntry unallocated = rootStorage.Context.DirectoryEntries.GetDirectoryEntry(1);
+            Assert.AreEqual(StorageType.Unallocated, unallocated.Type);
+            Assert.AreEqual(Guid.Empty, unallocated.CLSID);
+            Assert.AreEqual(0U, unallocated.StateBits);
+
+            Storage recycled = rootStorage.CreateStorage("Recycled");
+            Assert.AreEqual(Guid.Empty, recycled.CLSID);
+            Assert.AreEqual(0U, recycled.StateBits);
+            Assert.AreEqual(Guid.Empty, recycled.EntryInfo.CLSID);
+        }
+
+        using (var rootStorage = RootStorage.Open(memoryStream, StorageModeFlags.StrictValidation))
+        {
+            Storage recycled = rootStorage.OpenStorage("Recycled");
+            Assert.AreEqual(Guid.Empty, recycled.CLSID);
+            Assert.AreEqual(0U, recycled.StateBits);
+            Assert.AreEqual(Guid.Empty, recycled.EntryInfo.CLSID);
+        }
+    }
+
+    [TestMethod]
+    [DataRow(Version.V3)]
+    [DataRow(Version.V4)]
     public void SetMetadataAfterAddingSiblingKeepsSibling(Version version)
     {
         using MemoryStream memoryStream = new();
