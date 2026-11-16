@@ -114,7 +114,7 @@ public sealed class DirectoryEntryTests
 
         Assert.AreEqual(expectedName, entry.NameString);
         Assert.AreEqual(expectedName.Length * 2, entry.NameByteSpan.Length);
-        Assert.AreEqual(0, DirectoryEntryComparer.Compare(expectedName.AsSpan(), entry.NameCharSpan));
+        Assert.AreEqual(0, DirectoryEntryComparer.Default.Compare(new DirectoryEntry { NameString = expectedName }, entry));
     }
 
     [TestMethod]
