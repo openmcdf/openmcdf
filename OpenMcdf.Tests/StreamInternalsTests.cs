@@ -196,10 +196,29 @@ public sealed class StreamInternalsTests
     public void FatStream_SwitchToMiniFatStreamFailureRestoresPosition()
     {
         using RootStorage root = CreateRoot(out DirectoryEntry big, out _, out _);
-        using FatStream stream = new(root.ContextSite, big);
-        stream.Position = 10;
-        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => stream.SwitchToMiniFatStream(BigLength));
-        Assert.AreEqual(10, stream.Position);
+        using (FatStream stream = new(root.ContextSite, big))
+        {
+            stream.Position = 10;
+            Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => stream.SwitchToMiniFatStream(BigLength));
+            Assert.AreEqual(10, stream.Position);
+            Assert.AreEqual(BigLength, stream.Length);
+        }
+
+        DirectoryEntry entryAfterRangeError = root.Context.DirectoryEntries.GetDirectoryEntry(big.Id);
+        Assert.AreEqual(big.StartSectorId, entryAfterRangeError.StartSectorId);
+        Assert.AreEqual(BigLength, entryAfterRangeError.StreamLength);
+
+        using (FatStream corruptStream = new(root.ContextSite, big.Id, SectorType.EndOfChain, BigLength))
+        {
+            corruptStream.Position = 10;
+            Assert.ThrowsExactly<FileFormatException>(() => corruptStream.SwitchToMiniFatStream(SmallLength));
+            Assert.AreEqual(10, corruptStream.Position);
+            Assert.AreEqual(BigLength, corruptStream.Length);
+        }
+
+        DirectoryEntry entryAfterCopyError = root.Context.DirectoryEntries.GetDirectoryEntry(big.Id);
+        Assert.AreEqual(big.StartSectorId, entryAfterCopyError.StartSectorId);
+        Assert.AreEqual(BigLength, entryAfterCopyError.StreamLength);
     }
 
     [TestMethod]
@@ -364,11 +383,18 @@ public sealed class StreamInternalsTests
     [TestMethod]
     public void MiniFatStream_SwitchToFatStreamFailureRestoresPosition()
     {
-        using RootStorage root = CreateRoot(out _, out _, out DirectoryEntry empty);
-        using MiniFatStream stream = new(root.ContextSite, empty.Id, SectorType.EndOfChain, 100);
-        stream.Position = 10;
-        Assert.ThrowsExactly<FileFormatException>(() => stream.SwitchToFatStream(100));
-        Assert.AreEqual(10, stream.Position);
+        using RootStorage root = CreateRoot(out _, out DirectoryEntry small, out _);
+        using (MiniFatStream stream = new(root.ContextSite, small.Id, SectorType.EndOfChain, SmallLength))
+        {
+            stream.Position = 10;
+            Assert.ThrowsExactly<FileFormatException>(() => stream.SwitchToFatStream(BigLength));
+            Assert.AreEqual(10, stream.Position);
+            Assert.AreEqual(SmallLength, stream.Length);
+        }
+
+        DirectoryEntry entryAfterFailure = root.Context.DirectoryEntries.GetDirectoryEntry(small.Id);
+        Assert.AreEqual(small.StartSectorId, entryAfterFailure.StartSectorId);
+        Assert.AreEqual(SmallLength, entryAfterFailure.StreamLength);
     }
 
     [TestMethod]

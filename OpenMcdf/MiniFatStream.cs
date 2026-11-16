@@ -79,15 +79,27 @@ internal sealed class MiniFatStream : Stream
         Context.MiniStream.Flush();
     }
 
+    internal void Discard()
+    {
+        try
+        {
+            SetLength(0);
+        }
+        finally
+        {
+            isDirectoryEntryDirty = false;
+            Dispose();
+        }
+    }
+
     internal FatStream SwitchToFatStream(long length)
     {
         long originalPosition = Position;
 
-        FatStream? fatStream = null;
+        FatStream fatStream = new(rootContextSite, directoryEntryId, StreamId.NoStream, 0);
 
         try
         {
-            fatStream = new(rootContextSite, directoryEntryId, StreamId.NoStream, 0);
             fatStream.SetLength(length);
 
             Position = 0;
@@ -101,15 +113,8 @@ internal sealed class MiniFatStream : Stream
         }
         catch
         {
-            try
-            {
-                fatStream?.SetLength(0);
-            }
-            finally
-            {
-                Position = originalPosition;
-                fatStream?.Dispose();
-            }
+            Position = originalPosition;
+            fatStream.Discard();
 
             throw;
         }

@@ -89,23 +89,36 @@ internal sealed class FatStream : Stream
             Context.Writer.Flush();
     }
 
+    internal void Discard()
+    {
+        try
+        {
+            SetLength(0);
+        }
+        finally
+        {
+            isDirectoryEntryDirty = false;
+            Dispose();
+        }
+    }
+
     internal MiniFatStream SwitchToMiniFatStream(long length)
     {
-        MiniFatStream? miniFatStream = null;
-
+        long originalLength = this.length;
         long originalPosition = Position;
+
+        MiniFatStream miniFatStream = new(rootContextSite, directoryEntryId, StreamId.NoStream, 0);
 
         try
         {
-            miniFatStream = new(rootContextSite, directoryEntryId, StreamId.NoStream, 0);
             miniFatStream.SetLength(length);
 
-            SetLength(length); // Truncate the stream
-
+            this.length = length;
             Position = 0;
             CopyTo(miniFatStream);
             miniFatStream.Position = originalPosition;
 
+            this.length = originalLength;
             SetLength(0);
             isDirectoryEntryDirty = false; // Ownership of the directory entry is transferred to the mini FAT stream.
 
@@ -113,15 +126,9 @@ internal sealed class FatStream : Stream
         }
         catch
         {
-            try
-            {
-                miniFatStream?.SetLength(0);
-            }
-            finally
-            {
-                Position = originalPosition;
-                miniFatStream?.Dispose();
-            }
+            this.length = originalLength;
+            Position = originalPosition;
+            miniFatStream.Discard();
 
             throw;
         }
