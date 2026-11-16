@@ -211,6 +211,10 @@ public sealed class CfbBinaryReaderTests
     {
         byte[] bytes = CreateEntryBytes(StorageType.Stream, nameLength: 2);
         Assert.ThrowsExactly<FileFormatException>(() => ReadEntry(bytes, strict: true));
+
+        byte[] highByteNonZero = CreateEntryBytes(StorageType.Stream, nameLength: 4);
+        highByteNonZero[3] = 1;
+        Assert.ThrowsExactly<FileFormatException>(() => ReadEntry(highByteNonZero, strict: true));
     }
 
     [TestMethod]
