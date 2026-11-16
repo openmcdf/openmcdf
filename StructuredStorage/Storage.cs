@@ -99,12 +99,9 @@ public sealed class Storage : IDisposable
     public static unsafe Storage Create(string fileName, StorageModes modes = StorageModes.ShareExclusive | StorageModes.AccessReadWrite, bool v4 = true)
     {
         STGOPTIONS opts = v4 ? V4Options : V3Options;
-        HRESULT hr = PInvoke.StgCreateStorageEx(fileName, (STGM)modes, STGFMT.STGFMT_DOCFILE, 0, ref opts, (PSECURITY_DESCRIPTOR)null, IStorageGuid, out void* ptr);
+        HRESULT hr = PInvoke.StgCreateStorageEx(fileName, (STGM)modes, STGFMT.STGFMT_DOCFILE, 0, ref opts, (PSECURITY_DESCRIPTOR)null, out IStorage storage);
         hr.ThrowOnFailure();
-
-        var iStorage = (IStorage)Marshal.GetObjectForIUnknown((nint)ptr);
-        Marshal.Release((nint)ptr);
-        return new(iStorage);
+        return new(storage);
     }
 
     public static Storage CreateInMemory(int capacity)
@@ -128,16 +125,13 @@ public sealed class Storage : IDisposable
     public static unsafe Storage Open(string fileName, StorageModes modes = StorageModes.ShareExclusive | StorageModes.AccessReadWrite)
     {
         STGOPTIONS opts = V4Options;
-        HRESULT hr = PInvoke.StgOpenStorageEx(fileName, (STGM)modes, STGFMT.STGFMT_DOCFILE, 0, ref opts, (PSECURITY_DESCRIPTOR)null, IStorageGuid, out void* ptr);
+        HRESULT hr = PInvoke.StgOpenStorageEx(fileName, (STGM)modes, STGFMT.STGFMT_DOCFILE, 0, ref opts, (PSECURITY_DESCRIPTOR)null, out IStorage storage);
         if (hr == HRESULT.STG_E_FILENOTFOUND)
             throw new FileNotFoundException(null, fileName);
         if (hr == HRESULT.STG_E_FILEALREADYEXISTS)
             hr = HRESULT.STG_E_DOCFILECORRUPT;
         hr.ThrowOnFailure();
-
-        var iStorage = (IStorage)Marshal.GetObjectForIUnknown((nint)ptr);
-        Marshal.Release((nint)ptr);
-        return new(iStorage);
+        return new(storage);
     }
 
     #region IDisposable Members
