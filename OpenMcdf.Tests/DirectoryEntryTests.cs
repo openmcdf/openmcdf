@@ -91,4 +91,58 @@ public sealed class DirectoryEntryTests
         b = new() { Id = 1, NameString = "a", StartSectorId = 1 };
         Assert.IsFalse(a.Equals(b));
     }
+
+    [TestMethod]
+    [DataRow(0, "")]
+    [DataRow(1, "")]
+    [DataRow(2, "")]
+    [DataRow(3, "")]
+    [DataRow(4, "0")]
+    [DataRow(5, "0")]
+    [DataRow(64, "0123456789012345678901234567890")]
+    [DataRow(65, "0123456789012345678901234567890")]
+    [DataRow(66, "0123456789012345678901234567890")]
+    public void ClampedNameLength(int nameLength, string expectedName)
+    {
+        DirectoryEntry entry = new()
+        {
+            NameString = "0123456789012345678901234567890",
+        };
+        entry.Name[62] = (byte)'x';
+        entry.Name[63] = 0;
+        entry.NameLength = (ushort)nameLength;
+
+        Assert.AreEqual(expectedName, entry.NameString);
+        Assert.AreEqual(expectedName.Length * 2, entry.NameByteSpan.Length);
+        Assert.AreEqual(0, DirectoryEntryComparer.Compare(expectedName.AsSpan(), entry.NameCharSpan));
+    }
+
+    [TestMethod]
+    [DataRow(5)]
+    [DataRow(66)]
+    public void NonStrictMalformedNameLengthCanBeOpenedAfterEnumeration(int nameLength)
+    {
+        using MemoryStream stream = new();
+        using (var rootStorage = RootStorage.Create(stream, Version.V3, StorageModeFlags.LeaveOpen))
+        {
+            using CfbStream childStream = rootStorage.CreateStream("0123456789012345678901234567890");
+            childStream.WriteByte(0x42);
+        }
+
+        using (var rootStorage = RootStorage.Open(stream, StorageModeFlags.LeaveOpen))
+        {
+            DirectoryEntry entry = rootStorage.Context.DirectoryEntries.GetDirectoryEntry(1);
+            entry.Name[62] = (byte)'x';
+            entry.NameLength = (ushort)nameLength;
+            rootStorage.Context.DirectoryEntries.Write(entry);
+        }
+
+        using (var rootStorage = RootStorage.Open(stream, StorageModeFlags.LeaveOpen))
+        {
+            EntryInfo entryInfo = rootStorage.EnumerateEntries().Single();
+            Assert.IsTrue(rootStorage.ContainsEntry(entryInfo.Name));
+            using CfbStream childStream = rootStorage.OpenStream(entryInfo.Name);
+            Assert.AreEqual(0x42, childStream.ReadByte());
+        }
+    }
 }

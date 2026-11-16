@@ -104,7 +104,7 @@ internal sealed class DirectoryEntry : IEquatable<DirectoryEntry?>
     {
         get
         {
-            int clampedNameLength = Math.Max(0, Math.Min(NameFieldLength, NameLength - 2));
+            int clampedNameLength = Math.Max(0, Math.Min(NameFieldLength - 2, (NameLength - 2) & ~1));
             return Name.AsSpan(0, clampedNameLength);
         }
     }
@@ -115,7 +115,7 @@ internal sealed class DirectoryEntry : IEquatable<DirectoryEntry?>
     {
         get
         {
-            int clampedNameLength = Math.Max(0, Math.Min(NameFieldLength, NameLength - 2));
+            int clampedNameLength = Math.Max(0, Math.Min(NameFieldLength - 2, (NameLength - 2) & ~1));
             return Encoding.Unicode.GetString(Name, 0, clampedNameLength);
         }
 
