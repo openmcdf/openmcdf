@@ -1,5 +1,4 @@
 ﻿using System.Diagnostics.CodeAnalysis;
-using System.Text;
 
 namespace OpenMcdf;
 
@@ -68,7 +67,7 @@ internal static class ThrowHelper
         if (value.AsSpan().ContainsAny(InvalidNameChars))
             throw new ArgumentException("Name cannot contain any of the following characters: '\\', '/', ':', '!'.", nameof(value));
 
-        if (Encoding.Unicode.GetByteCount(value) > DirectoryEntry.NameFieldLength - 2)
+        if (value.Length >= DirectoryEntry.MaxNameLength)
             throw new ArgumentException($"{value} exceeds maximum encoded length of {DirectoryEntry.NameFieldLength} bytes.", nameof(value));
     }
 

@@ -108,12 +108,11 @@ public sealed class DirectoryEntryTests
         {
             NameString = "0123456789012345678901234567890",
         };
-        entry.Name[62] = (byte)'x';
-        entry.Name[63] = 0;
+        entry.Name[31] = 'x';
         entry.NameLength = (ushort)nameLength;
 
         Assert.AreEqual(expectedName, entry.NameString);
-        Assert.AreEqual(expectedName.Length * 2, entry.NameByteSpan.Length);
+        Assert.AreEqual(expectedName.Length, entry.NameCharSpan.Length);
         Assert.AreEqual(0, DirectoryEntryComparer.Default.Compare(new DirectoryEntry { NameString = expectedName }, entry));
     }
 
@@ -132,7 +131,7 @@ public sealed class DirectoryEntryTests
         using (var rootStorage = RootStorage.Open(stream, StorageModeFlags.LeaveOpen))
         {
             DirectoryEntry entry = rootStorage.Context.DirectoryEntries.GetDirectoryEntry(1);
-            entry.Name[62] = (byte)'x';
+            entry.Name[31] = 'x';
             entry.NameLength = (ushort)nameLength;
             rootStorage.Context.DirectoryEntries.Write(entry);
         }

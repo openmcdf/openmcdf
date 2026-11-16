@@ -1,6 +1,4 @@
 ﻿using System.Diagnostics.CodeAnalysis;
-using System.Runtime.InteropServices;
-using System.Text;
 
 namespace OpenMcdf;
 
@@ -31,13 +29,14 @@ internal sealed class DirectoryEntry : IEquatable<DirectoryEntry?>
 {
     internal const int Length = 128;
     internal const int NameFieldLength = 64;
+    internal const int MaxNameLength = NameFieldLength / sizeof(char);
     internal const long MaxV3StreamLength = 0x80000000;
 
     internal static readonly byte[] Unallocated = new byte[128];
 
     public uint Id { get; set; }
 
-    public byte[] Name { get; } = new byte[NameFieldLength];
+    public char[] Name { get; } = new char[MaxNameLength];
 
     public ushort NameLength { get; set; }
 
@@ -100,31 +99,24 @@ internal sealed class DirectoryEntry : IEquatable<DirectoryEntry?>
         _ => '?',
     };
 
-    public ReadOnlySpan<byte> NameByteSpan
+    public ReadOnlySpan<char> NameCharSpan
     {
         get
         {
-            int clampedNameLength = Math.Max(0, Math.Min(NameFieldLength - 2, (NameLength - 2) & ~1));
+            int clampedNameLength = Math.Max(0, Math.Min(MaxNameLength - 1, (NameLength / sizeof(char)) - 1));
             return Name.AsSpan(0, clampedNameLength);
         }
     }
 
-    public ReadOnlySpan<char> NameCharSpan => MemoryMarshal.Cast<byte, char>(NameByteSpan);
-
     public string NameString
     {
-        get
-        {
-            int clampedNameLength = Math.Max(0, Math.Min(NameFieldLength - 2, (NameLength - 2) & ~1));
-            return Encoding.Unicode.GetString(Name, 0, clampedNameLength);
-        }
+        get => NameCharSpan.ToString();
 
         set
         {
-            int length = Encoding.Unicode.GetBytes(value, 0, value.Length, Name, 0);
-            Span<byte> remainder = Name.AsSpan().Slice(length);
-            remainder.Clear();
-            NameLength = (ushort)(length + 2);
+            value.AsSpan().CopyTo(Name);
+            Name.AsSpan(value.Length).Clear();
+            NameLength = (ushort)((value.Length + 1) * sizeof(char));
         }
     }
 
@@ -135,8 +127,8 @@ internal sealed class DirectoryEntry : IEquatable<DirectoryEntry?>
         HashCode code = default;
         code.Add(Id);
         code.Add(NameLength);
-        foreach (byte b in Name)
-            code.Add(b);
+        foreach (char c in Name)
+            code.Add(c);
         return code.ToHashCode();
     }
 

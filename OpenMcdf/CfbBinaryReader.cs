@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System.Buffers.Binary;
+using System.Diagnostics;
 using System.Text;
 
 namespace OpenMcdf;
@@ -144,7 +145,8 @@ internal sealed class CfbBinaryReader : BinaryReader
             throw new FileFormatException("Directory entry is truncated.", exception);
         }
 
-        buffer.CopyTo(entry.Name, 0);
+        for (int i = 0; i < DirectoryEntry.MaxNameLength; i++)
+            entry.Name[i] = (char)BinaryPrimitives.ReadUInt16LittleEndian(buffer.AsSpan(i * sizeof(char)));
 
         // Name length is clamped and validated when reading or creating new entries.
         if (strict)
@@ -153,7 +155,7 @@ internal sealed class CfbBinaryReader : BinaryReader
                 throw new FileFormatException($"Name length {entry.NameLength} is not a multiple of 2.");
             if (entry.NameLength > DirectoryEntry.NameFieldLength)
                 throw new FileFormatException($"Name length {entry.NameLength} exceeds maximum value {DirectoryEntry.NameFieldLength}.");
-            if (entry.NameLength > 0 && entry.Name[entry.NameLength - 2] != 0)
+            if (entry.NameLength > 0 && entry.Name[(entry.NameLength / sizeof(char)) - 1] != '\0')
                 throw new FileFormatException("Name must be null-terminated.");
         }
 

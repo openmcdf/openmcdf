@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Buffers.Binary;
+using System.Text;
 
 namespace OpenMcdf;
 
@@ -7,6 +8,8 @@ namespace OpenMcdf;
 /// </summary>
 internal sealed class CfbBinaryWriter : BinaryWriter
 {
+    readonly byte[] nameBuffer = new byte[DirectoryEntry.NameFieldLength];
+
     public CfbBinaryWriter(Stream input)
         : base(input, Encoding.Unicode, true)
     {
@@ -61,7 +64,9 @@ internal sealed class CfbBinaryWriter : BinaryWriter
 
     public void Write(DirectoryEntry entry)
     {
-        Write(entry.Name, 0, DirectoryEntry.NameFieldLength);
+        for (int i = 0; i < DirectoryEntry.MaxNameLength; i++)
+            BinaryPrimitives.WriteUInt16LittleEndian(nameBuffer.AsSpan(i * sizeof(char)), entry.Name[i]);
+        Write(nameBuffer, 0, DirectoryEntry.NameFieldLength);
         Write(entry.NameLength);
         Write((byte)entry.Type);
         Write((byte)NodeColor.Black); // TODO: Support tree balancing
