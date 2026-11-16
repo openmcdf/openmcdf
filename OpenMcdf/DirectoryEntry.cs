@@ -173,6 +173,8 @@ internal sealed class DirectoryEntry : IEquatable<DirectoryEntry?>
         LeftSiblingId = StreamId.NoStream;
         RightSiblingId = StreamId.NoStream;
         ChildId = StreamId.NoStream;
+        CLSID = Guid.Empty;
+        StateBits = 0;
         StartSectorId = storageType is StorageType.Stream or StorageType.Root ? StreamId.NoStream : 0;
         StreamLength = 0;
 
