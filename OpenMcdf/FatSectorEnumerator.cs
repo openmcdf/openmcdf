@@ -8,6 +8,7 @@ namespace OpenMcdf;
 internal sealed class FatSectorEnumerator : ContextBase, IEnumerator<Sector>
 {
     private readonly DifatSectorEnumerator difatSectorEnumerator;
+    private uint[]? cachedDifatEntries;
     private bool started = false;
     private uint index = uint.MaxValue;
     private Sector current = Sector.EndOfChain;
@@ -79,6 +80,14 @@ internal sealed class FatSectorEnumerator : ContextBase, IEnumerator<Sector>
             return true;
         }
 
+        uint difatEntryOffset = index - Header.DifatArrayLength;
+        if (TryGetCachedDifatEntry(difatEntryOffset, out uint cachedId))
+        {
+            this.index = index;
+            current = new(cachedId, Context.SectorSize);
+            return true;
+        }
+
         uint difatChainIndex = GetDifatChainIndexAndDifatEntryIndex(index, out long difatElementIndex);
         if (!difatSectorEnumerator.MoveTo(difatChainIndex))
         {
@@ -99,9 +108,60 @@ internal sealed class FatSectorEnumerator : ContextBase, IEnumerator<Sector>
             throw new FileFormatException("DIFAT sector is truncated.", exception);
         }
         ThrowIfFatSectorIdIsInvalid(id);
+        CacheDifatEntry(difatEntryOffset, id);
         this.index = index;
         current = new Sector(id, Context.SectorSize);
         return true;
+    }
+
+    private bool TryGetCachedDifatEntry(uint offset, out uint sectorId)
+    {
+        if (cachedDifatEntries is not null && offset < (uint)cachedDifatEntries.Length)
+        {
+            uint id = cachedDifatEntries[(int)offset];
+            if (id != SectorType.Free)
+            {
+                sectorId = id;
+                return true;
+            }
+        }
+
+        sectorId = SectorType.Free;
+        return false;
+    }
+
+    private void CacheDifatEntry(uint offset, uint sectorId)
+    {
+        if (offset >= ChainCheckpointTable.MaxCount)
+            return;
+
+        uint maxEntries = Math.Min(ChainCheckpointTable.MaxCount, Context.SectorCount);
+        if (offset >= maxEntries)
+            return;
+
+        if (cachedDifatEntries is null)
+        {
+            int initialLength = (int)Math.Min(Math.Max(16u, offset + 1), maxEntries);
+            while (initialLength <= offset)
+                initialLength = (int)Math.Min((uint)initialLength * 2, maxEntries);
+
+            cachedDifatEntries = new uint[initialLength];
+            for (int i = 0; i < cachedDifatEntries.Length; i++)
+                cachedDifatEntries[i] = SectorType.Free;
+        }
+        else if (offset >= (uint)cachedDifatEntries.Length)
+        {
+            int oldLength = cachedDifatEntries.Length;
+            int newLength = oldLength;
+            while (newLength <= offset)
+                newLength = (int)Math.Min((uint)newLength * 2, maxEntries);
+
+            Array.Resize(ref cachedDifatEntries, newLength);
+            for (int i = oldLength; i < newLength; i++)
+                cachedDifatEntries[i] = SectorType.Free;
+        }
+
+        cachedDifatEntries[(int)offset] = sectorId;
     }
 
     private void ThrowIfFatSectorIdIsInvalid(uint id)
@@ -155,6 +215,7 @@ internal sealed class FatSectorEnumerator : ContextBase, IEnumerator<Sector>
             Sector difatSector = difatSectorEnumerator.Current;
             writer.Position = difatSector.Position + difatElementIndex * sizeof(uint);
             writer.Write(newFatSector.Id);
+            CacheDifatEntry(nextIndex - Header.DifatArrayLength, newFatSector.Id);
         }
 
         Context.Fat[newFatSector.Id] = SectorType.Fat;

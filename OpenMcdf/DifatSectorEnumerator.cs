@@ -1,4 +1,5 @@
 ﻿using System.Collections;
+using System.Diagnostics;
 
 namespace OpenMcdf;
 
@@ -7,10 +8,16 @@ namespace OpenMcdf;
 /// </summary>
 internal sealed class DifatSectorEnumerator : ContextBase, IEnumerator<Sector>
 {
-    bool started = false;
-    uint index = uint.MaxValue;
-    Sector current = Sector.EndOfChain;
-    private uint difatSectorId = SectorType.EndOfChain;
+    private ChainCheckpointTable checkpoints;
+    private bool started = false;
+    private uint index = uint.MaxValue;
+    private Sector current = Sector.EndOfChain;
+
+    // Discovery frontier
+    private bool hasFrontier = false;
+    private bool endReached = false;
+    private uint frontierIndex = uint.MaxValue;
+    private Sector frontierCurrent = Sector.EndOfChain;
 
     public DifatSectorEnumerator(RootContextSite rootContextSite)
         : base(rootContextSite)
@@ -41,40 +48,127 @@ internal sealed class DifatSectorEnumerator : ContextBase, IEnumerator<Sector>
         if (!started)
         {
             started = true;
-            index = uint.MaxValue;
-            difatSectorId = Context.Header.FirstDifatSectorId;
-        }
-        else if (difatSectorId != SectorType.EndOfChain)
-        {
-            CfbBinaryReader reader = Context.Reader;
-            try
+            if (!TryInitializeFrontier())
             {
-                reader.Position = current.EndPosition - sizeof(uint);
-                difatSectorId = reader.ReadUInt32();
+                index = uint.MaxValue;
+                current = Sector.EndOfChain;
+                return false;
             }
-            catch (EndOfStreamException exception)
-            {
-                throw new FileFormatException("DIFAT sector is truncated.", exception);
-            }
-            if (difatSectorId != SectorType.EndOfChain)
-                ThrowHelper.ThrowIfSectorIdIsInvalid(difatSectorId);
+
+            index = 0;
+            current = new(Context.Header.FirstDifatSectorId, Context.SectorSize);
+            return true;
         }
 
-        if (difatSectorId == SectorType.EndOfChain)
+        if (index == uint.MaxValue)
+            return false;
+
+        if (index < frontierIndex)
+        {
+            uint nextIndex = index + 1;
+            if (nextIndex == frontierIndex)
+            {
+                index = frontierIndex;
+                current = frontierCurrent;
+                return true;
+            }
+
+            if (checkpoints.TryGetCheckpoint(nextIndex, out uint checkpointIndex, out uint checkpointSector)
+                && checkpointIndex == nextIndex)
+            {
+                index = nextIndex;
+                current = new(checkpointSector, Context.SectorSize);
+                return true;
+            }
+
+            uint nextSectorId = ReadNextDifatSectorId(current);
+            index = nextIndex;
+            current = new(nextSectorId, Context.SectorSize);
+            return true;
+        }
+
+        return TryAdvanceFrontier();
+    }
+
+    private bool TryInitializeFrontier()
+    {
+        if (hasFrontier)
+            return true;
+
+        if (endReached)
+            return false;
+
+        uint firstSectorId = Context.Header.FirstDifatSectorId;
+        if (firstSectorId == SectorType.EndOfChain)
+        {
+            endReached = true;
+            index = uint.MaxValue;
+            current = Sector.EndOfChain;
+            return false;
+        }
+
+        if (Context.Header.DifatSectorCount == 0)
+            throw new FileFormatException("DIFAT chain index is greater than the sector count.");
+        if (Context.SectorCount == 0)
+            throw new FileFormatException("DIFAT chain index is greater than the maximum for the stream length.");
+
+        hasFrontier = true;
+        frontierIndex = 0;
+        frontierCurrent = new(firstSectorId, Context.SectorSize);
+        checkpoints.Add(0, firstSectorId);
+        return true;
+    }
+
+    private uint ReadNextDifatSectorId(Sector sector)
+    {
+        CfbBinaryReader reader = Context.Reader;
+        uint nextSectorId;
+        try
+        {
+            reader.Position = sector.EndPosition - sizeof(uint);
+            nextSectorId = reader.ReadUInt32();
+        }
+        catch (EndOfStreamException exception)
+        {
+            throw new FileFormatException("DIFAT sector is truncated.", exception);
+        }
+
+        if (nextSectorId != SectorType.EndOfChain)
+            ThrowHelper.ThrowIfSectorIdIsInvalid(nextSectorId);
+
+        return nextSectorId;
+    }
+
+    private bool TryAdvanceFrontier()
+    {
+        if (endReached)
         {
             index = uint.MaxValue;
             current = Sector.EndOfChain;
             return false;
         }
 
-        uint nextIndex = index + 1;
+        uint nextSectorId = ReadNextDifatSectorId(frontierCurrent);
+        if (nextSectorId == SectorType.EndOfChain)
+        {
+            endReached = true;
+            index = uint.MaxValue;
+            current = Sector.EndOfChain;
+            return false;
+        }
+
+        uint nextIndex = frontierIndex + 1;
         if (nextIndex >= Context.Header.DifatSectorCount)
             throw new FileFormatException("DIFAT chain index is greater than the sector count.");
         if (nextIndex >= Context.SectorCount)
             throw new FileFormatException("DIFAT chain index is greater than the maximum for the stream length.");
 
-        current = new(difatSectorId, Context.SectorSize);
-        index = nextIndex;
+        frontierIndex = nextIndex;
+        frontierCurrent = new(nextSectorId, Context.SectorSize);
+        checkpoints.Add(frontierIndex, nextSectorId);
+
+        index = frontierIndex;
+        current = frontierCurrent;
         return true;
     }
 
@@ -83,15 +177,58 @@ internal sealed class DifatSectorEnumerator : ContextBase, IEnumerator<Sector>
         if (index >= Context.Header.DifatSectorCount)
             return false;
 
-        if (!started && !MoveNext())
-            return false;
+        if (started && this.index == index)
+            return true;
 
-        if (index < this.index)
-            Reset();
-
-        while (!started || this.index < index)
+        started = true;
+        if (!TryInitializeFrontier())
         {
-            if (!MoveNext())
+            this.index = uint.MaxValue;
+            current = Sector.EndOfChain;
+            return false;
+        }
+
+        if (index <= frontierIndex)
+        {
+            if (index == frontierIndex)
+            {
+                this.index = frontierIndex;
+                current = frontierCurrent;
+                return true;
+            }
+
+            bool hasCheckpoint = checkpoints.TryGetCheckpoint(index, out uint checkpointIndex, out uint checkpointSector);
+            Debug.Assert(hasCheckpoint);
+
+            if (this.index > index || this.index < checkpointIndex)
+            {
+                this.index = checkpointIndex;
+                current = new(checkpointSector, Context.SectorSize);
+            }
+
+            while (this.index < index)
+            {
+                uint nextSectorId = ReadNextDifatSectorId(current);
+                this.index++;
+                current = new(nextSectorId, Context.SectorSize);
+            }
+
+            return true;
+        }
+
+        if (endReached)
+        {
+            this.index = uint.MaxValue;
+            current = Sector.EndOfChain;
+            return false;
+        }
+
+        this.index = frontierIndex;
+        current = frontierCurrent;
+
+        while (this.index < index)
+        {
+            if (!TryAdvanceFrontier())
                 return false;
         }
 
@@ -104,7 +241,6 @@ internal sealed class DifatSectorEnumerator : ContextBase, IEnumerator<Sector>
         started = false;
         index = uint.MaxValue;
         current = Sector.EndOfChain;
-        difatSectorId = SectorType.EndOfChain;
     }
 
     public void Add()
@@ -137,9 +273,23 @@ internal sealed class DifatSectorEnumerator : ContextBase, IEnumerator<Sector>
 
         Context.Fat[newDifatSector.Id] = SectorType.Difat;
 
+        if (!hasFrontier)
+        {
+            hasFrontier = true;
+            frontierIndex = 0;
+            frontierCurrent = newDifatSector;
+            checkpoints.Add(0, newDifatSector.Id);
+        }
+        else
+        {
+            frontierIndex = header.DifatSectorCount - 1;
+            frontierCurrent = newDifatSector;
+            checkpoints.Add(frontierIndex, newDifatSector.Id);
+        }
+
+        endReached = true;
         started = true;
         index = header.DifatSectorCount - 1;
         current = newDifatSector;
-        difatSectorId = SectorType.EndOfChain;
     }
 }

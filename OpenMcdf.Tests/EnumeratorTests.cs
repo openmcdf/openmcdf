@@ -1,4 +1,6 @@
+using System.Buffers.Binary;
 using System.Collections;
+using System.Text;
 
 namespace OpenMcdf.Tests;
 
@@ -643,6 +645,325 @@ public sealed class EnumeratorTests
         DirectoryTree tree = new(root.ContextSite, StreamId.Root);
         Assert.IsFalse(tree.TryGetDirectoryEntry("missing", out DirectoryEntry? entry));
         Assert.IsNull(entry);
+    }
+
+    [TestMethod]
+    public void ChainCheckpointTable_SelfThinning()
+    {
+        ChainCheckpointTable table = default;
+        Assert.AreEqual(0, table.Count);
+        Assert.AreEqual(1u, table.Stride);
+        Assert.IsFalse(table.TryGetCheckpoint(0, out _, out _));
+
+        uint max = ChainCheckpointTable.MaxCount;
+
+        // Fill initial capacity (0..MaxCount-1) at stride 1
+        for (uint i = 0; i < max; i++)
+            table.Add(i, 1000 + i);
+
+        Assert.AreEqual((int)max, table.Count);
+        Assert.AreEqual(1u, table.Stride);
+        Assert.IsTrue(table.TryGetCheckpoint(max - 1, out uint cpLast, out uint sectorLast));
+        Assert.AreEqual(max - 1, cpLast);
+        Assert.AreEqual(1000 + max - 1, sectorLast);
+
+        // Adding index MaxCount thins the table to stride 2 (keeping MaxCount/2 even indices and adding MaxCount)
+        table.Add(max, 1000 + max);
+        Assert.AreEqual((int)(max / 2) + 1, table.Count);
+        Assert.AreEqual(2u, table.Stride);
+
+        // Non-multiple of stride 2 is ignored
+        table.Add(max + 1, 1000 + max + 1);
+        Assert.AreEqual((int)(max / 2) + 1, table.Count);
+
+        // Continue adding up to 2 * MaxCount, which triggers a second thinning to stride 4
+        for (uint i = max + 2; i <= max * 2; i++)
+            table.Add(i, 1000 + i);
+
+        Assert.AreEqual((int)(max / 2) + 1, table.Count);
+        Assert.AreEqual(4u, table.Stride);
+
+        Assert.IsTrue(table.TryGetCheckpoint(7, out uint cp7, out uint s7));
+        Assert.AreEqual(4u, cp7);
+        Assert.AreEqual(1004u, s7);
+
+        Assert.IsTrue(table.TryGetCheckpoint(max * 3, out uint cpBeyond, out uint sBeyond));
+        Assert.AreEqual(max * 2, cpBeyond);
+        Assert.AreEqual(1000 + (max * 2), sBeyond);
+
+        table.Clear();
+        Assert.AreEqual(0, table.Count);
+        Assert.AreEqual(1u, table.Stride);
+    }
+
+    [TestMethod]
+    public void FatChainEnumerator_BackwardMoveTo()
+    {
+        using RootStorage root = CreateRoot(25 * 512);
+        uint start = GetStartSectorId(root);
+        List<uint> expected = GetChain(root, start);
+        Assert.AreEqual(25, expected.Count);
+
+        using FatChainEnumerator enumerator = new(root.ContextSite, start);
+        Assert.IsTrue(enumerator.MoveTo((uint)(expected.Count - 1)));
+
+        // Walk backward through every index and verify exact sector IDs
+        for (int i = expected.Count - 1; i >= 0; i--)
+        {
+            Assert.IsTrue(enumerator.MoveTo((uint)i));
+            Assert.AreEqual(expected[i], enumerator.Current);
+        }
+
+        // Walk forward via MoveNext across the already-discovered range
+        enumerator.Reset();
+        for (int i = 0; i < expected.Count; i++)
+        {
+            Assert.IsTrue(enumerator.MoveNext());
+            Assert.AreEqual(expected[i], enumerator.Current);
+        }
+        Assert.IsFalse(enumerator.MoveNext());
+
+        // Reset with the same start sector keeps checkpoints; Reset with a different start sector switches chains
+        enumerator.Reset(start);
+        Assert.IsTrue(enumerator.MoveTo((uint)(expected.Count - 1)));
+        Assert.AreEqual(expected[expected.Count - 1], enumerator.Current);
+
+        enumerator.Reset(expected[1]);
+        Assert.IsTrue(enumerator.MoveTo(0));
+        Assert.AreEqual(expected[1], enumerator.Current);
+    }
+
+    [TestMethod]
+    public void MiniFatChainEnumerator_BackwardMoveTo()
+    {
+        using RootStorage root = CreateRoot(25 * 64);
+        uint start = root.Context.DirectoryEntries.GetDirectoryEntry(1).StartSectorId;
+        List<uint> expected = [];
+        using (MiniFatChainEnumerator full = new(root.ContextSite, start))
+        {
+            while (full.MoveNext())
+                expected.Add(full.Current);
+        }
+        Assert.AreEqual(25, expected.Count);
+
+        using MiniFatChainEnumerator enumerator = new(root.ContextSite, start);
+        Assert.IsTrue(enumerator.MoveTo((uint)(expected.Count - 1)));
+
+        for (int i = expected.Count - 1; i >= 0; i--)
+        {
+            Assert.IsTrue(enumerator.MoveTo((uint)i));
+            Assert.AreEqual(expected[i], enumerator.Current);
+        }
+
+        enumerator.Reset();
+        for (int i = 0; i < expected.Count; i++)
+        {
+            Assert.IsTrue(enumerator.MoveNext());
+            Assert.AreEqual(expected[i], enumerator.Current);
+        }
+        Assert.IsFalse(enumerator.MoveNext());
+    }
+
+    [TestMethod]
+    public void DifatSectorEnumerator_BackwardMoveTo()
+    {
+        // 16 MB stream requires 2 DIFAT sectors in V3
+        using RootStorage root = CreateRoot(16_000_000);
+        uint difatCount = root.Context.Header.DifatSectorCount;
+        Assert.IsGreaterThanOrEqualTo(2u, difatCount);
+
+        using DifatSectorEnumerator enumerator = new(root.ContextSite);
+        Assert.IsTrue(enumerator.MoveTo(difatCount - 1));
+        Sector last = enumerator.Current;
+
+        Assert.IsTrue(enumerator.MoveTo(0));
+        Assert.AreEqual(root.Context.Header.FirstDifatSectorId, enumerator.Current.Id);
+
+        Assert.IsTrue(enumerator.MoveNext());
+        Assert.IsTrue(enumerator.MoveTo(difatCount - 1));
+        Assert.AreEqual(last, enumerator.Current);
+    }
+
+    [TestMethod]
+    [DataRow(1748)] // ~0.9 MB V3 file (6,991 entries)
+    [DataRow(15000)] // ~7.7 MB V3 file (59,999 entries, exercises DIFAT-backed FAT sectors)
+    public void CraftedDirectoryLayout_LinearReads(int directorySectors)
+    {
+        byte[] craftedBytes = BuildCraftedDirectoryFile(directorySectors);
+        using CountingReadStream stream = new(craftedBytes);
+        using RootStorage root = RootStorage.Open(stream, StorageModeFlags.LeaveOpen | StorageModeFlags.StrictValidation);
+
+        int count = 0;
+        foreach (EntryInfo entry in root.EnumerateEntries())
+        {
+            _ = entry;
+            count++;
+        }
+
+        Assert.AreEqual(4 * directorySectors - 1, count);
+
+        // Without checkpoint indexing, 1748 sectors reads 3,465x the file and 15000 sectors reads >30,000x.
+        // With checkpoint indexing, total bytes requested stays under 2x the file length.
+        Assert.IsLessThanOrEqualTo(craftedBytes.Length * 2L, stream.BytesRead);
+
+        long bytesBeforeLookup = stream.BytesRead;
+        Assert.IsFalse(root.TryOpenStream("zzzzzzzzz", out _));
+
+        // Every directory sector is already indexed in memory, so walking the chain again reads 0 FAT sectors
+        // and requests at most 1x the directory size.
+        long lookupBytes = stream.BytesRead - bytesBeforeLookup;
+        Assert.IsLessThanOrEqualTo(craftedBytes.Length, lookupBytes);
+    }
+
+    static byte[] BuildCraftedDirectoryFile(int d)
+    {
+        const int SectorSize = 512, FatPerSector = 128, DifatPerSector = 127, HeaderDifat = 109, EntriesPerSector = 4;
+        const uint EndOfChain = 0xFFFFFFFE, Free = 0xFFFFFFFF, FatSector = 0xFFFFFFFD, DifatSector = 0xFFFFFFFC, NoStream = 0xFFFFFFFF;
+
+        int f = 1, df = 0;
+        for (; ;)
+        {
+            int needF = (f + df + d + FatPerSector - 1) / FatPerSector;
+            int needDf = needF > HeaderDifat ? (needF - HeaderDifat + DifatPerSector - 1) / DifatPerSector : 0;
+            if (needF == f && needDf == df)
+                break;
+            (f, df) = (needF, needDf);
+        }
+        int dirBase = f + df;
+
+        int stride = 131;
+        while (Gcd(stride, d) != 1)
+            stride++;
+
+        uint Phys(int chainIndex) => (uint)(dirBase + (int)((long)chainIndex * stride % d));
+        long SectorOffset(uint id) => (id + 1L) * SectorSize;
+        long EntryOffset(uint sid) => SectorOffset(Phys((int)(sid / EntriesPerSector))) + sid % EntriesPerSector * 128;
+
+        byte[] b = new byte[(f + df + d + 1) * SectorSize];
+        new byte[] { 0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1 }.CopyTo(b, 0);
+        U16(b, 24, 0x003E);
+        U16(b, 26, 3);
+        U16(b, 28, 0xFFFE);
+        U16(b, 30, 9);
+        U16(b, 32, 6);
+        U32(b, 44, (uint)f);
+        U32(b, 48, Phys(0));
+        U32(b, 56, 4096);
+        U32(b, 60, EndOfChain);
+        U32(b, 68, df > 0 ? (uint)f : EndOfChain);
+        U32(b, 72, (uint)df);
+
+        for (int i = 0; i < HeaderDifat; i++)
+            U32(b, 76 + i * 4, i < f ? (uint)i : Free);
+
+        for (int k = 0; k < df; k++)
+        {
+            long off = SectorOffset((uint)(f + k));
+            for (int j = 0; j < DifatPerSector; j++)
+            {
+                int fatIndex = HeaderDifat + k * DifatPerSector + j;
+                U32(b, off + j * 4, fatIndex < f ? (uint)fatIndex : Free);
+            }
+            U32(b, off + DifatPerSector * 4, k + 1 < df ? (uint)(f + k + 1) : EndOfChain);
+        }
+
+        long FatOffset(uint sector) => SectorOffset(sector / FatPerSector) + sector % FatPerSector * 4;
+        for (uint i = 0; i < (uint)f * FatPerSector; i++)
+            U32(b, FatOffset(i), Free);
+        for (uint i = 0; i < f; i++)
+            U32(b, FatOffset(i), FatSector);
+        for (uint i = 0; i < df; i++)
+            U32(b, FatOffset((uint)f + i), DifatSector);
+        for (int i = 0; i < d; i++)
+            U32(b, FatOffset(Phys(i)), i == d - 1 ? EndOfChain : Phys(i + 1));
+
+        int count = EntriesPerSector * d - 1;
+        uint[] sidOfRank = new uint[count];
+        int r = 0;
+        for (int slot = 0; slot < EntriesPerSector; slot++)
+        {
+            for (int sector = d - 1; sector >= 0; sector--)
+            {
+                if (sector != 0 || slot != 0)
+                    sidOfRank[r++] = (uint)(sector * EntriesPerSector + slot);
+            }
+        }
+
+        WriteEntry(b, EntryOffset(0), "Root Entry", type: 5, right: NoStream, child: sidOfRank[0]);
+        for (int i = 0; i < count; i++)
+            WriteEntry(b, EntryOffset(sidOfRank[i]), "n" + i.ToString("D7"), type: 2, right: i + 1 < count ? sidOfRank[i + 1] : NoStream, child: NoStream);
+
+        return b;
+
+        static void WriteEntry(byte[] b, long off, string name, byte type, uint right, uint child)
+        {
+            Encoding.Unicode.GetBytes(name).CopyTo(b, (int)off);
+            U16(b, off + 64, (ushort)((name.Length + 1) * 2));
+            b[off + 66] = type;
+            b[off + 67] = 1;
+            U32(b, off + 68, NoStream);
+            U32(b, off + 72, right);
+            U32(b, off + 76, child);
+            U32(b, off + 116, EndOfChain);
+        }
+
+        static int Gcd(int a, int b) => b == 0 ? a : Gcd(b, a % b);
+        static void U16(byte[] b, long off, ushort v) => BinaryPrimitives.WriteUInt16LittleEndian(b.AsSpan((int)off, 2), v);
+        static void U32(byte[] b, long off, uint v) => BinaryPrimitives.WriteUInt32LittleEndian(b.AsSpan((int)off, 4), v);
+    }
+
+    sealed class CountingReadStream : Stream
+    {
+        readonly byte[] data;
+        long position;
+
+        public CountingReadStream(byte[] data)
+        {
+            this.data = data;
+        }
+
+        public long Reads { get; private set; }
+
+        public long BytesRead { get; private set; }
+
+        public override bool CanRead => true;
+
+        public override bool CanSeek => true;
+
+        public override bool CanWrite => false;
+
+        public override long Length => data.Length;
+
+        public override long Position
+        {
+            get => position;
+            set => position = value;
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            int n = (int)Math.Max(0, Math.Min(count, data.Length - position));
+            Array.Copy(data, position, buffer, offset, n);
+            position += n;
+            Reads++;
+            BytesRead += n;
+            return n;
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => position = origin switch
+        {
+            SeekOrigin.Begin => offset,
+            SeekOrigin.Current => position + offset,
+            _ => data.Length + offset,
+        };
+
+        public override void Flush()
+        {
+        }
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
     sealed class TruncatedReadMemoryStream : MemoryStream

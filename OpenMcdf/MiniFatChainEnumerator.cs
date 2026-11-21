@@ -10,13 +10,18 @@ namespace OpenMcdf;
 internal sealed class MiniFatChainEnumerator : ContextBase, IEnumerator<uint>
 {
     private readonly MiniFatEnumerator miniFatEnumerator;
+    private ChainCheckpointTable checkpoints;
     private uint startId;
     private bool started = false;
     uint index = uint.MaxValue;
     private uint current = uint.MaxValue;
     private long length = -1;
 
-    // Brent's cycle-finding algorithm
+    // Discovery frontier and Brent's cycle-finding algorithm
+    private bool hasFrontier = false;
+    private bool endReached = false;
+    private uint frontierIndex = uint.MaxValue;
+    private uint frontierCurrent = uint.MaxValue;
     private uint cycleLength = 1;
     private uint power = 1;
     private uint slow = uint.MaxValue;
@@ -58,51 +63,154 @@ internal sealed class MiniFatChainEnumerator : ContextBase, IEnumerator<uint>
         if (!started)
         {
             started = true;
-            index = 0;
-            current = startId;
-        }
-        else if (!SectorType.IsFreeOrEndOfChain(current))
-        {
-            uint value = Context.MiniFat[current];
-            if (value == SectorType.EndOfChain)
+            if (!TryInitializeFrontier())
             {
                 index = uint.MaxValue;
                 current = uint.MaxValue;
-                slow = uint.MaxValue;
                 return false;
             }
 
-            if (value > SectorType.Maximum)
-                throw new FileFormatException($"Invalid mini FAT sector ID: {value}.");
-
-            uint nextIndex = index + 1;
-            if (nextIndex > SectorType.Maximum)
-                throw new FileFormatException("Mini FAT chain length is greater than the maximum.");
-
-            if (value == slow && slow != uint.MaxValue)
-                throw new FileFormatException("Mini FAT chain contains a loop.");
-
-            if (cycleLength == power)
-            {
-                cycleLength = 0;
-                power *= 2;
-                slow = value;
-            }
-
-            index = nextIndex;
-            current = value;
-            cycleLength++;
+            index = 0;
+            current = startId;
             return true;
         }
 
-        if (SectorType.IsFreeOrEndOfChain(current))
+        if (index == uint.MaxValue)
+            return false;
+
+        if (index < frontierIndex)
+        {
+            uint nextIndex = index + 1;
+            if (nextIndex == frontierIndex)
+            {
+                index = frontierIndex;
+                current = frontierCurrent;
+                return true;
+            }
+
+            if (checkpoints.TryGetCheckpoint(nextIndex, out uint checkpointIndex, out uint checkpointSector)
+                && checkpointIndex == nextIndex)
+            {
+                index = nextIndex;
+                current = checkpointSector;
+                return true;
+            }
+
+            current = Context.MiniFat[current];
+            index = nextIndex;
+            return true;
+        }
+
+        return TryAdvanceFrontier();
+    }
+
+    private bool TryInitializeFrontier()
+    {
+        if (hasFrontier)
+            return true;
+
+        if (SectorType.IsFreeOrEndOfChain(startId))
+        {
+            endReached = true;
+            length = 0;
+            return false;
+        }
+
+        hasFrontier = true;
+        frontierIndex = 0;
+        frontierCurrent = startId;
+        checkpoints.Add(0, startId);
+        return true;
+    }
+
+    private bool TryAdvanceFrontier()
+    {
+        if (endReached)
         {
             index = uint.MaxValue;
             current = uint.MaxValue;
             return false;
         }
 
+        uint value = Context.MiniFat[frontierCurrent];
+        if (value == SectorType.EndOfChain)
+        {
+            endReached = true;
+            length = (long)frontierIndex + 1;
+            index = uint.MaxValue;
+            current = uint.MaxValue;
+            return false;
+        }
+
+        if (value > SectorType.Maximum)
+            throw new FileFormatException($"Invalid mini FAT sector ID: {value}.");
+
+        uint nextIndex = frontierIndex + 1;
+        if (nextIndex > SectorType.Maximum)
+            throw new FileFormatException("Mini FAT chain length is greater than the maximum.");
+
+        if (value == slow && slow != uint.MaxValue)
+            throw new FileFormatException("Mini FAT chain contains a loop.");
+
+        if (cycleLength == power)
+        {
+            cycleLength = 0;
+            power *= 2;
+            slow = value;
+        }
+
+        frontierIndex = nextIndex;
+        frontierCurrent = value;
+        cycleLength++;
+        checkpoints.Add(frontierIndex, frontierCurrent);
+
+        index = frontierIndex;
+        current = frontierCurrent;
         return true;
+    }
+
+    private void RecordAppendedSector(uint sectorId)
+    {
+        if (!hasFrontier)
+        {
+            hasFrontier = true;
+            endReached = true;
+            frontierIndex = 0;
+            frontierCurrent = sectorId;
+            checkpoints.Add(0, sectorId);
+            length = 1;
+            return;
+        }
+
+        if (cycleLength == power)
+        {
+            cycleLength = 0;
+            power *= 2;
+            slow = sectorId;
+        }
+
+        frontierIndex++;
+        frontierCurrent = sectorId;
+        cycleLength++;
+        checkpoints.Add(frontierIndex, sectorId);
+        endReached = true;
+        length = (long)frontierIndex + 1;
+    }
+
+    private void EnsureEndReached()
+    {
+        if (endReached)
+            return;
+
+        if (!TryInitializeFrontier())
+            return;
+
+        started = true;
+        index = frontierIndex;
+        current = frontierCurrent;
+        while (TryAdvanceFrontier())
+        {
+        }
     }
 
     /// <summary>
@@ -112,12 +220,60 @@ internal sealed class MiniFatChainEnumerator : ContextBase, IEnumerator<uint>
     /// <returns>true if the enumerator was successfully advanced to the given index.</returns>
     public bool MoveTo(uint index)
     {
-        if (index < this.index)
-            Reset();
+        if (started && this.index == index)
+            return true;
 
-        while (!started || this.index < index)
+        if (!TryInitializeFrontier())
         {
-            if (!MoveNext())
+            this.index = uint.MaxValue;
+            current = uint.MaxValue;
+            return false;
+        }
+
+        if (index <= frontierIndex)
+        {
+            if (index == frontierIndex)
+            {
+                started = true;
+                this.index = frontierIndex;
+                current = frontierCurrent;
+                return true;
+            }
+
+            bool hasCheckpoint = checkpoints.TryGetCheckpoint(index, out uint checkpointIndex, out uint checkpointSector);
+            Debug.Assert(hasCheckpoint);
+
+            if (!started || this.index > index || this.index < checkpointIndex)
+            {
+                started = true;
+                this.index = checkpointIndex;
+                current = checkpointSector;
+            }
+
+            while (this.index < index)
+            {
+                current = Context.MiniFat[current];
+                this.index++;
+            }
+
+            return true;
+        }
+
+        if (endReached)
+        {
+            started = true;
+            this.index = uint.MaxValue;
+            current = uint.MaxValue;
+            return false;
+        }
+
+        started = true;
+        this.index = frontierIndex;
+        current = frontierCurrent;
+
+        while (this.index < index)
+        {
+            if (!TryAdvanceFrontier())
                 return false;
         }
 
@@ -127,14 +283,7 @@ internal sealed class MiniFatChainEnumerator : ContextBase, IEnumerator<uint>
     public long GetLength()
     {
         if (length == -1)
-        {
-            Reset();
-            length = 0;
-            while (MoveNext())
-            {
-                length++;
-            }
-        }
+            EnsureEndReached();
 
         return length;
     }
@@ -149,6 +298,7 @@ internal sealed class MiniFatChainEnumerator : ContextBase, IEnumerator<uint>
         if (SectorType.IsFreeOrEndOfChain(startId))
         {
             startId = Context.MiniFat.Add(miniFatEnumerator, 0);
+            RecordAppendedSector(startId);
             chainLength = 1;
         }
 
@@ -162,12 +312,13 @@ internal sealed class MiniFatChainEnumerator : ContextBase, IEnumerator<uint>
         {
             uint id = Context.MiniFat.Add(miniFatEnumerator, lastId);
             Context.MiniFat[lastId] = id;
+            RecordAppendedSector(id);
             lastId = id;
             chainLength++;
         }
 
 #if DEBUG
-        this.length = -1;
+        InvalidateCache();
         this.length = GetLength();
         Debug.Assert(length == requiredChainLength);
 #endif
@@ -206,6 +357,8 @@ internal sealed class MiniFatChainEnumerator : ContextBase, IEnumerator<uint>
             startId = StreamId.NoStream;
         }
 
+        InvalidateCache();
+
 #if DEBUG
         this.length = -1;
         this.length = GetLength();
@@ -223,15 +376,26 @@ internal sealed class MiniFatChainEnumerator : ContextBase, IEnumerator<uint>
             Shrink(0);
     }
 
+    private void InvalidateCache()
+    {
+        Reset();
+        checkpoints.Clear();
+        hasFrontier = false;
+        endReached = false;
+        frontierIndex = uint.MaxValue;
+        frontierCurrent = uint.MaxValue;
+        slow = uint.MaxValue;
+        cycleLength = 1;
+        power = 1;
+        length = -1;
+    }
+
     /// <inheritdoc/>
     public void Reset()
     {
         started = false;
         index = uint.MaxValue;
         current = uint.MaxValue;
-        slow = uint.MaxValue;
-        cycleLength = 1;
-        power = 1;
     }
 
     [ExcludeFromCodeCoverage]

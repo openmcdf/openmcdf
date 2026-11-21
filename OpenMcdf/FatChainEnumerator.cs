@@ -10,13 +10,18 @@ namespace OpenMcdf;
 internal sealed class FatChainEnumerator : ContextBase, IEnumerator<uint>
 {
     private readonly FatEnumerator fatEnumerator;
+    private ChainCheckpointTable checkpoints;
     private uint startId;
     private bool started = false;
     private uint index = uint.MaxValue;
     private uint current = uint.MaxValue;
     private long length = -1;
 
-    // Brent's cycle detection algorithm
+    // Discovery frontier and Brent's cycle detection algorithm
+    private bool hasFrontier = false;
+    private bool endReached = false;
+    private uint frontierIndex = uint.MaxValue;
+    private uint frontierCurrent = uint.MaxValue;
     private uint cycleLength = 1;
     private uint power = 1;
     private uint slow = uint.MaxValue;
@@ -59,7 +64,7 @@ internal sealed class FatChainEnumerator : ContextBase, IEnumerator<uint>
     {
         if (!started)
         {
-            if (startId is SectorType.EndOfChain or SectorType.Free)
+            if (!TryInitializeFrontier())
             {
                 index = uint.MaxValue;
                 current = uint.MaxValue;
@@ -69,16 +74,71 @@ internal sealed class FatChainEnumerator : ContextBase, IEnumerator<uint>
             index = 0;
             current = startId;
             started = true;
-            slow = uint.MaxValue;
             return true;
         }
 
         if (index == uint.MaxValue)
             return false;
 
-        uint value = Fat[current];
+        if (index < frontierIndex)
+        {
+            uint nextIndex = index + 1;
+            if (nextIndex == frontierIndex)
+            {
+                index = frontierIndex;
+                current = frontierCurrent;
+                return true;
+            }
+
+            if (checkpoints.TryGetCheckpoint(nextIndex, out uint checkpointIndex, out uint checkpointSector)
+                && checkpointIndex == nextIndex)
+            {
+                index = nextIndex;
+                current = checkpointSector;
+                return true;
+            }
+
+            current = Fat[current];
+            index = nextIndex;
+            return true;
+        }
+
+        return TryAdvanceFrontier();
+    }
+
+    private bool TryInitializeFrontier()
+    {
+        if (hasFrontier)
+            return true;
+
+        if (startId is SectorType.EndOfChain or SectorType.Free)
+        {
+            endReached = true;
+            length = 0;
+            return false;
+        }
+
+        hasFrontier = true;
+        frontierIndex = 0;
+        frontierCurrent = startId;
+        checkpoints.Add(0, startId);
+        return true;
+    }
+
+    private bool TryAdvanceFrontier()
+    {
+        if (endReached)
+        {
+            index = uint.MaxValue;
+            current = uint.MaxValue;
+            return false;
+        }
+
+        uint value = Fat[frontierCurrent];
         if (value is SectorType.EndOfChain)
         {
+            endReached = true;
+            length = (long)frontierIndex + 1;
             index = uint.MaxValue;
             current = uint.MaxValue;
             return false;
@@ -87,8 +147,8 @@ internal sealed class FatChainEnumerator : ContextBase, IEnumerator<uint>
         if (value > SectorType.Maximum)
             throw new FileFormatException($"Invalid FAT sector ID: {value}.");
 
-        index++;
-        if (index >= Context.SectorCount)
+        uint nextIndex = frontierIndex + 1;
+        if (nextIndex >= Context.SectorCount)
         {
             index = uint.MaxValue;
             current = uint.MaxValue;
@@ -105,9 +165,58 @@ internal sealed class FatChainEnumerator : ContextBase, IEnumerator<uint>
             slow = value;
         }
 
-        current = value;
+        frontierIndex = nextIndex;
+        frontierCurrent = value;
         cycleLength++;
+        checkpoints.Add(frontierIndex, frontierCurrent);
+
+        index = frontierIndex;
+        current = frontierCurrent;
         return true;
+    }
+
+    private void RecordAppendedSector(uint sectorId)
+    {
+        if (!hasFrontier)
+        {
+            hasFrontier = true;
+            endReached = true;
+            frontierIndex = 0;
+            frontierCurrent = sectorId;
+            checkpoints.Add(0, sectorId);
+            length = 1;
+            return;
+        }
+
+        if (cycleLength == power)
+        {
+            cycleLength = 0;
+            power *= 2;
+            slow = sectorId;
+        }
+
+        frontierIndex++;
+        frontierCurrent = sectorId;
+        cycleLength++;
+        checkpoints.Add(frontierIndex, sectorId);
+        endReached = true;
+        length = (long)frontierIndex + 1;
+    }
+
+    private void EnsureEndReached()
+    {
+        if (endReached)
+            return;
+
+        if (!TryInitializeFrontier())
+            return;
+
+        started = true;
+        index = frontierIndex;
+        current = frontierCurrent;
+        while (TryAdvanceFrontier())
+        {
+        }
     }
 
     /// <summary>
@@ -117,12 +226,60 @@ internal sealed class FatChainEnumerator : ContextBase, IEnumerator<uint>
     /// <returns>true if the enumerator was successfully advanced to the given index.</returns>
     public bool MoveTo(uint index)
     {
-        if (index < this.index)
-            Reset();
+        if (started && this.index == index)
+            return true;
 
-        while (!started || this.index < index)
+        if (!TryInitializeFrontier())
         {
-            if (!MoveNext())
+            this.index = uint.MaxValue;
+            current = uint.MaxValue;
+            return false;
+        }
+
+        if (index <= frontierIndex)
+        {
+            if (index == frontierIndex)
+            {
+                started = true;
+                this.index = frontierIndex;
+                current = frontierCurrent;
+                return true;
+            }
+
+            bool hasCheckpoint = checkpoints.TryGetCheckpoint(index, out uint checkpointIndex, out uint checkpointSector);
+            Debug.Assert(hasCheckpoint);
+
+            if (!started || this.index > index || this.index < checkpointIndex)
+            {
+                started = true;
+                this.index = checkpointIndex;
+                current = checkpointSector;
+            }
+
+            while (this.index < index)
+            {
+                current = Fat[current];
+                this.index++;
+            }
+
+            return true;
+        }
+
+        if (endReached)
+        {
+            started = true;
+            this.index = uint.MaxValue;
+            current = uint.MaxValue;
+            return false;
+        }
+
+        started = true;
+        this.index = frontierIndex;
+        current = frontierCurrent;
+
+        while (this.index < index)
+        {
+            if (!TryAdvanceFrontier())
                 return false;
         }
 
@@ -132,14 +289,7 @@ internal sealed class FatChainEnumerator : ContextBase, IEnumerator<uint>
     public long GetLength()
     {
         if (length == -1)
-        {
-            Reset();
-            length = 0;
-            while (MoveNext())
-            {
-                length++;
-            }
-        }
+            EnsureEndReached();
 
         return length;
     }
@@ -163,6 +313,7 @@ internal sealed class FatChainEnumerator : ContextBase, IEnumerator<uint>
         if (SectorType.IsFreeOrEndOfChain(startId))
         {
             startId = Fat.Add(fatEnumerator, 0);
+            RecordAppendedSector(startId);
             chainLength = 1;
         }
 
@@ -176,11 +327,11 @@ internal sealed class FatChainEnumerator : ContextBase, IEnumerator<uint>
         {
             uint id = Fat.Add(fatEnumerator, lastId);
             Fat[lastId] = id;
+            RecordAppendedSector(id);
             lastId = id;
             chainLength++;
         }
 
-        length = requiredChainLength;
         return startId;
     }
 
@@ -189,23 +340,16 @@ internal sealed class FatChainEnumerator : ContextBase, IEnumerator<uint>
         if (SectorType.IsFreeOrEndOfChain(startId))
         {
             startId = Fat.Add(fatEnumerator, hintId);
-            if (length != -1)
-                length = 1;
+            RecordAppendedSector(startId);
             return startId;
         }
 
-        Reset();
-
-        uint lastId = startId;
-        while (MoveNext())
-        {
-            lastId = current;
-        }
+        EnsureEndReached();
+        uint lastId = frontierCurrent;
 
         uint id = Fat.Add(fatEnumerator, hintId);
         Fat[lastId] = id;
-        if (length != -1)
-            length++;
+        RecordAppendedSector(id);
         return id;
     }
 
@@ -238,6 +382,8 @@ internal sealed class FatChainEnumerator : ContextBase, IEnumerator<uint>
             startId = StreamId.NoStream;
         }
 
+        InvalidateCache();
+
 #if DEBUG
         this.length = -1;
         this.length = GetLength();
@@ -255,18 +401,39 @@ internal sealed class FatChainEnumerator : ContextBase, IEnumerator<uint>
             Shrink(0);
     }
 
-    /// <inheritdoc/>
-    public void Reset() => Reset(startId);
-
-    public void Reset(uint startSectorId)
+    private void InvalidateCache()
     {
-        startId = startSectorId;
-        started = false;
-        index = uint.MaxValue;
-        current = uint.MaxValue;
+        Reset();
+        checkpoints.Clear();
+        hasFrontier = false;
+        endReached = false;
+        frontierIndex = uint.MaxValue;
+        frontierCurrent = uint.MaxValue;
         slow = uint.MaxValue;
         cycleLength = 1;
         power = 1;
+        length = -1;
+    }
+
+    /// <inheritdoc/>
+    public void Reset()
+    {
+        started = false;
+        index = uint.MaxValue;
+        current = uint.MaxValue;
+    }
+
+    public void Reset(uint startSectorId)
+    {
+        if (startId != startSectorId)
+        {
+            startId = startSectorId;
+            InvalidateCache();
+        }
+        else
+        {
+            Reset();
+        }
     }
 
     [ExcludeFromCodeCoverage]
