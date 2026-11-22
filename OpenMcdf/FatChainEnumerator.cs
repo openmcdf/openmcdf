@@ -362,28 +362,33 @@ internal sealed class FatChainEnumerator : ContextBase, IEnumerator<uint>
 
         Reset();
 
-        uint lastId = current;
-        while (MoveNext())
+        try
         {
-            if (!SectorType.IsFreeOrEndOfChain(lastId))
+            uint lastId = current;
+            while (MoveNext())
             {
-                if (index == requiredChainLength)
-                    Fat[lastId] = SectorType.EndOfChain;
-                else if (index > requiredChainLength)
-                    Fat[lastId] = SectorType.Free;
+                if (!SectorType.IsFreeOrEndOfChain(lastId))
+                {
+                    if (index == requiredChainLength)
+                        Fat[lastId] = SectorType.EndOfChain;
+                    else if (index > requiredChainLength)
+                        Fat[lastId] = SectorType.Free;
+                }
+
+                lastId = current;
             }
 
-            lastId = current;
+            Fat[lastId] = SectorType.Free;
+
+            if (requiredChainLength == 0)
+            {
+                startId = StreamId.NoStream;
+            }
         }
-
-        Fat[lastId] = SectorType.Free;
-
-        if (requiredChainLength == 0)
+        finally
         {
-            startId = StreamId.NoStream;
+            InvalidateCache();
         }
-
-        InvalidateCache();
 
 #if DEBUG
         this.length = -1;

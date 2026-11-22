@@ -336,29 +336,34 @@ internal sealed class MiniFatChainEnumerator : ContextBase, IEnumerator<uint>
 
         Reset();
 
-        uint lastId = current;
-        while (MoveNext())
+        try
         {
-            if (lastId <= SectorType.Maximum)
+            uint lastId = current;
+            while (MoveNext())
             {
-                if (index == requiredChainLength)
-                    Context.MiniFat[lastId] = SectorType.EndOfChain;
-                else if (index > requiredChainLength)
-                    Context.MiniFat[lastId] = SectorType.Free;
+                if (lastId <= SectorType.Maximum)
+                {
+                    if (index == requiredChainLength)
+                        Context.MiniFat[lastId] = SectorType.EndOfChain;
+                    else if (index > requiredChainLength)
+                        Context.MiniFat[lastId] = SectorType.Free;
+                }
+
+                lastId = current;
             }
 
-            lastId = current;
+            if (lastId <= SectorType.Maximum)
+                Context.MiniFat[lastId] = SectorType.Free;
+
+            if (requiredChainLength == 0)
+            {
+                startId = StreamId.NoStream;
+            }
         }
-
-        if (lastId <= SectorType.Maximum)
-            Context.MiniFat[lastId] = SectorType.Free;
-
-        if (requiredChainLength == 0)
+        finally
         {
-            startId = StreamId.NoStream;
+            InvalidateCache();
         }
-
-        InvalidateCache();
 
 #if DEBUG
         this.length = -1;
