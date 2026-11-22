@@ -743,6 +743,44 @@ public sealed class EnumeratorTests
     }
 
     [TestMethod]
+    public void FatChainEnumerator_ThinnedCheckpoints()
+    {
+        // More than 2 * MaxCount sectors, so the checkpoint table thins twice to stride 4
+        int sectorCount = (2 * ChainCheckpointTable.MaxCount) + 1000;
+        using RootStorage root = CreateRoot(sectorCount * 512);
+        uint start = GetStartSectorId(root);
+        List<uint> expected = GetChain(root, start);
+        Assert.AreEqual(sectorCount, expected.Count);
+
+        using FatChainEnumerator enumerator = new(root.ContextSite, start);
+        Assert.IsTrue(enumerator.MoveTo((uint)(expected.Count - 1)));
+        Assert.AreEqual(expected[expected.Count - 1], enumerator.Current);
+
+        // Backward seeks land between checkpoints and walk forward from the nearest one
+        for (int i = expected.Count - 1; i >= 0; i--)
+        {
+            Assert.IsTrue(enumerator.MoveTo((uint)i));
+            Assert.AreEqual(expected[i], enumerator.Current);
+        }
+
+        // Short forward seeks walk from the current position when it is at or past the nearest checkpoint
+        for (int i = 1; i < expected.Count; i += 3)
+        {
+            Assert.IsTrue(enumerator.MoveTo((uint)i));
+            Assert.AreEqual(expected[i], enumerator.Current);
+        }
+
+        // MoveNext through the discovered range steps between checkpoints via the FAT
+        enumerator.Reset();
+        for (int i = 0; i < expected.Count; i++)
+        {
+            Assert.IsTrue(enumerator.MoveNext());
+            Assert.AreEqual(expected[i], enumerator.Current);
+        }
+        Assert.IsFalse(enumerator.MoveNext());
+    }
+
+    [TestMethod]
     public void MiniFatChainEnumerator_BackwardMoveTo()
     {
         using RootStorage root = CreateRoot(25 * 64);
@@ -956,20 +994,23 @@ public sealed class EnumeratorTests
         public override long Position
         {
             get => position;
-            set => position = value;
+            set => position = value >= 0 ? value : throw new ArgumentOutOfRangeException(nameof(value));
         }
 
         public override int Read(byte[] buffer, int offset, int count)
         {
-            int n = (int)Math.Max(0, Math.Min(count, data.Length - position));
+            Reads++;
+            if (position >= data.Length)
+                return 0;
+
+            int n = (int)Math.Min(count, data.Length - position);
             Array.Copy(data, position, buffer, offset, n);
             position += n;
-            Reads++;
             BytesRead += n;
             return n;
         }
 
-        public override long Seek(long offset, SeekOrigin origin) => position = origin switch
+        public override long Seek(long offset, SeekOrigin origin) => Position = origin switch
         {
             SeekOrigin.Begin => offset,
             SeekOrigin.Current => position + offset,

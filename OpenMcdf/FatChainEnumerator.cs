@@ -150,11 +150,7 @@ internal sealed class FatChainEnumerator : ContextBase, IEnumerator<uint>
 
         uint nextIndex = frontierIndex + 1;
         if (nextIndex >= Context.SectorCount)
-        {
-            index = uint.MaxValue;
-            current = uint.MaxValue;
             throw new FileFormatException("FAT chain index is greater than the sector count.");
-        }
 
         if (value == slow && slow != uint.MaxValue)
             throw new FileFormatException("FAT chain contains a loop.");
