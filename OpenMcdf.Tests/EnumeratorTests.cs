@@ -762,6 +762,16 @@ public sealed class EnumeratorTests
             Assert.AreEqual(expected[i], enumerator.Current);
         }
         Assert.IsFalse(enumerator.MoveNext());
+
+        // Extend updates incremental checkpoints without invalidation, and Shrink invalidates cleanly
+        enumerator.Extend((uint)(expected.Count + 2));
+        Assert.AreEqual(expected.Count + 2, enumerator.GetLength());
+        Assert.IsTrue(enumerator.MoveTo((uint)(expected.Count + 1)));
+        Assert.IsTrue(enumerator.MoveTo(0));
+        Assert.AreEqual(expected[0], enumerator.Current);
+
+        enumerator.Shrink((uint)expected.Count);
+        Assert.AreEqual(expected.Count, enumerator.GetLength());
     }
 
     [TestMethod]

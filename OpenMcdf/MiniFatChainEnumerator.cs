@@ -319,9 +319,10 @@ internal sealed class MiniFatChainEnumerator : ContextBase, IEnumerator<uint>
         }
 
 #if DEBUG
-        InvalidateCache();
-        this.length = GetLength();
-        Debug.Assert(length == requiredChainLength);
+        using (MiniFatChainEnumerator verifyEnumerator = new(ContextSite, startId))
+        {
+            Debug.Assert(verifyEnumerator.GetLength() == requiredChainLength);
+        }
 #endif
 
         length = requiredChainLength;
