@@ -878,7 +878,7 @@ public sealed class EnumeratorTests
         const uint EndOfChain = 0xFFFFFFFE, Free = 0xFFFFFFFF, FatSector = 0xFFFFFFFD, DifatSector = 0xFFFFFFFC, NoStream = 0xFFFFFFFF;
 
         int f = 1, df = 0;
-        for (; ;)
+        while (true)
         {
             int needF = (f + df + d + FatPerSector - 1) / FatPerSector;
             int needDf = needF > HeaderDifat ? (needF - HeaderDifat + DifatPerSector - 1) / DifatPerSector : 0;
