@@ -36,6 +36,7 @@ internal sealed class MiniFatChainEnumerator : ContextBase, IEnumerator<uint>
     /// <inheritdoc/>
     public void Dispose()
     {
+        checkpoints.Clear();
         miniFatEnumerator.Dispose();
     }
 

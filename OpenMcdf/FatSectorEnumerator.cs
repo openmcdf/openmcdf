@@ -23,6 +23,7 @@ internal sealed class FatSectorEnumerator : ContextBase, IEnumerator<Sector>
     public void Dispose()
     {
         // Context is owned by a parent
+        cachedDifatEntries = null;
         difatSectorEnumerator.Dispose();
     }
 

@@ -27,6 +27,7 @@ internal sealed class DifatSectorEnumerator : ContextBase, IEnumerator<Sector>
     /// <inheritdoc/>
     public void Dispose()
     {
+        checkpoints.Clear();
     }
 
     /// <inheritdoc/>

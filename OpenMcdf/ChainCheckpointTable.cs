@@ -77,6 +77,7 @@ internal struct ChainCheckpointTable
 
     public void Clear()
     {
+        sectors = null;
         count = 0;
         stride = 1;
     }
