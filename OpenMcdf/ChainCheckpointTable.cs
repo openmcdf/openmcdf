@@ -30,22 +30,20 @@ internal struct ChainCheckpointTable
         if (chainIndex % stride != 0)
             return;
 
+        sectors ??= new uint[InitialCapacity];
+
         if (count == MaxCount)
         {
+            // Keep every other checkpoint, which leaves room without growing the array
             int newCount = count / 2;
             for (int i = 1; i < newCount; i++)
-                sectors![i] = sectors[i * 2];
+                sectors[i] = sectors[i * 2];
 
             count = newCount;
             stride *= 2;
 
             if (chainIndex % stride != 0)
                 return;
-        }
-
-        if (sectors is null)
-        {
-            sectors = new uint[InitialCapacity];
         }
         else if (count == sectors.Length)
         {

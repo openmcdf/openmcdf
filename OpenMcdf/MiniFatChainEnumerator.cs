@@ -211,6 +211,7 @@ internal sealed class MiniFatChainEnumerator : ContextBase, IEnumerator<uint>
         current = frontierCurrent;
         while (TryAdvanceFrontier())
         {
+            // Each step records the next sector, until the end of the chain
         }
     }
 
