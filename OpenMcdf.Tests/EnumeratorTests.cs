@@ -374,6 +374,8 @@ public sealed class EnumeratorTests
             using FatChainEnumerator enumerator = new(root.ContextSite, start);
             Assert.IsTrue(enumerator.MoveNext());
             Assert.ThrowsExactly<FileFormatException>(() => enumerator.MoveNext());
+            Assert.IsTrue(enumerator.IsAt(0));
+            Assert.AreEqual(start, enumerator.Current);
         }
         finally
         {
@@ -393,13 +395,16 @@ public sealed class EnumeratorTests
         {
             fat[second] = start;
             using FatChainEnumerator enumerator = new(root.ContextSite, start);
+            uint lastValid = uint.MaxValue;
             FileFormatException exception = Assert.ThrowsExactly<FileFormatException>(() =>
             {
                 while (enumerator.MoveNext())
                 {
+                    lastValid = enumerator.Current;
                 }
             });
             StringAssert.Contains(exception.Message, "loop");
+            Assert.AreEqual(lastValid, enumerator.Current);
         }
         finally
         {
@@ -529,6 +534,7 @@ public sealed class EnumeratorTests
             using MiniFatChainEnumerator enumerator = new(root.ContextSite, start);
             Assert.IsTrue(enumerator.MoveNext());
             Assert.ThrowsExactly<FileFormatException>(() => enumerator.MoveNext());
+            Assert.AreEqual(start, enumerator.Current);
         }
         finally
         {
@@ -555,13 +561,16 @@ public sealed class EnumeratorTests
         {
             miniFat[second] = start;
             using MiniFatChainEnumerator enumerator = new(root.ContextSite, start);
+            uint lastValid = uint.MaxValue;
             FileFormatException exception = Assert.ThrowsExactly<FileFormatException>(() =>
             {
                 while (enumerator.MoveNext())
                 {
+                    lastValid = enumerator.Current;
                 }
             });
             StringAssert.Contains(exception.Message, "loop");
+            Assert.AreEqual(lastValid, enumerator.Current);
         }
         finally
         {
